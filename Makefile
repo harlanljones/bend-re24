@@ -10,13 +10,22 @@ BEND_SRC = main.bend $(wildcard src/*.bend)
 CWFIELDS = -f 0,1,2,4,34,35,40,58-61 -x 3,13,14,45,55
 NOTICE = The information used here was obtained free of charge from and is copyrighted by Retrosheet.  Interested parties may contact Retrosheet at "www.retrosheet.org".
 
-.PHONY: fetch ingest build proofs run check fixtures compare
+# Wall seconds of one command, from bash's `time`.
+TIME = bash -c 'TIMEFORMAT=%R; { time "$$@" > /dev/null; } 2>&1' --
+
+.PHONY: fetch ingest build gpu proofs run check fixtures compare time
 
 build: bin/re24
 
 bin/re24: $(BEND_SRC)
 	mkdir -p bin
 	$(BEND) main.bend -o bin/re24
+
+gpu: bin/re24-gpu
+
+bin/re24-gpu: gpu.bend $(BEND_SRC)
+	mkdir -p bin
+	$(BEND) gpu.bend -o bin/re24-gpu
 
 proofs:
 	BEND=$(BEND) ./check.sh
@@ -27,6 +36,16 @@ check:
 run: bin/re24 data/plays-$(YEAR).csv
 	mkdir -p out
 	bin/re24 run data/plays-$(YEAR).csv > out/run-$(YEAR).txt
+	bin/re24 boot data/plays-$(YEAR).csv $(SEED) > out/boot-$(YEAR).txt
+
+# One line per mode: `<mode> <seconds>`, or `gpu FAILED`.
+time: bin/re24 data/plays-$(YEAR).csv
+	mkdir -p out
+	{ printf 'cpu-1 %s\n' "$$($(TIME) bin/re24 boot data/plays-$(YEAR).csv $(SEED) +RTS --threads 1 -RTS)"; \
+	  printf 'cpu-24 %s\n' "$$($(TIME) bin/re24 boot data/plays-$(YEAR).csv $(SEED) +RTS --threads 24 -RTS)"; \
+	  if $(MAKE) -s gpu > /dev/null 2>&1 && g=$$($(TIME) bin/re24-gpu boot data/plays-$(YEAR).csv $(SEED)); \
+	  then printf 'gpu %s\n' "$$g"; else echo 'gpu FAILED'; fi; } > out/timing-$(YEAR).txt
+	cat out/timing-$(YEAR).txt
 
 compare: out/run-$(YEAR).txt
 	go run ./compare -run out/run-$(YEAR).txt -ref fixtures/reference/fangraphs-$(YEAR)-re24.csv

@@ -28,3 +28,8 @@ got=$(printf '%s\n' "$out" | awk '$1 == "RE" { print $1, $2, $3, $4, $5 }')
 bad=$(bin/re24 run fixtures/plays-bad.csv) || fail bad-run
 has "$bad" '^GAMES 2 1 1$' || fail bad-games
 has "$bad" '^BADGAME 1 [0-9]+ runs$' || fail bad-badgame
+
+# The bootstrap prints the same intervals on one thread and on 24.
+one=$(bin/re24 boot fixtures/plays-mini.csv 7 +RTS --threads 1 -RTS) || fail boot-run
+many=$(bin/re24 boot fixtures/plays-mini.csv 7 +RTS --threads 24 -RTS) || fail boot-run
+[ "$one" = "$many" ] || fail boot-threads

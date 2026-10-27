@@ -7,6 +7,7 @@ import ./spec.bend as Spec
 import ./counts.bend as Counts
 import ./re24.bend as RE
 import ./decisions.bend as Dec
+import ./bootstrap.bend as Boot
 
 # Reading a file
 # --------------
@@ -309,6 +310,46 @@ def report(sea: RE.Season, +table: List<&2, Spec.Row>) -> String:
               List.append(&2, String, be_lines(Dec.be_choices(), Dec.be_vals(ts)),
                 dre_lines(Dec.dre_choices(), Dec.dre_vals(ts)))))), "\n")
 
+# Bootstrap intervals
+
+def band_line(head: String, b: Boot.Band) -> String:
+  match b:
+    case Boot.Band{lo, hi}:
+      head ++ opt(lo) ++ opt(hi)
+
+def zband_line(head: String, b: Boot.ZBand) -> String:
+  match b:
+    case Boot.ZBand{lo, hi}:
+      head ++ zopt(lo) ++ zopt(hi)
+
+def ci_re(bs: List<&2, Boot.Band>, +i: Nat) -> List<&2, String>:
+  match bs:
+    case Nil{}:
+      Nil{}
+    case Con{b, rest}:
+      band_line("CI RE" ++ state(i), b) <> ci_re(rest, 1n+i)
+
+def ci_be(cs: List<&2, Dec.Choice>, bs: List<&2, Boot.Band>) -> List<&2, String>:
+  match cs bs:
+    case Con{c, cr} Con{b, br}:
+      band_line(head("CI BE", c), b) <> ci_be(cr, br)
+    case _ _:
+      Nil{}
+
+def ci_dre(cs: List<&2, Dec.Choice>, bs: List<&2, Boot.ZBand>) -> List<&2, String>:
+  match cs bs:
+    case Con{c, cr} Con{b, br}:
+      zband_line(head("CI DRE", c), b) <> ci_dre(cr, br)
+    case _ _:
+      Nil{}
+
+def boot.report(+seed: U32, +g: Nat, cis: Boot.CIs) -> String:
+  match cis:
+    case Boot.CIs{re, be, dre}:
+      String.join(("BOOT" ++ sp(Boot.size()) ++ " " ++ U32.show(seed) ++ sp(g)) <>
+        List.append(&2, String, ci_re(re, 0n),
+          List.append(&2, String, ci_be(Dec.be_choices(), be), ci_dre(Dec.dre_choices(), dre))), "\n")
+
 # Effects
 # -------
 
@@ -363,17 +404,62 @@ def run(args: List<String>) -> IO(Unit):
     case _:
       usage()
 
-def route(args: List<String>, is_run: Bool) -> IO(Unit):
-  match is_run:
+# `go` runs the samples: Boot.run.cpu here, the GPU fork in gpu.bend.
+def boot.games(~go: Boot.Cfg -> List<&2, Boot.Sample>, +seed: U32, +g: Nat, +games: List<&2, List<&2, RE.Tot>>, none: Bool) -> IO(Unit):
+  match none:
     case True{}:
-      run(args)
+      fail("ERROR no good games", 1)
     case False{}:
+      IO.print(boot.report(seed, g, Boot.cis(go(Boot.cfg(games, seed)))))
+
+def boot.season(~go: Boot.Cfg -> List<&2, Boot.Sample>, +seed: U32, sea: RE.Season) -> IO(Unit):
+  match sea:
+    case RE.Season{_, +good, _, _, _, +games, _, _, _}:
+      boot.games(~go, seed, good, games, Nat.is_eq(good, 0n))
+
+def boot.parsed(~go: Boot.Cfg -> List<&2, Boot.Sample>, +seed: U32, r: Result<&2, &2, String, List<&2, RE.Rec>>) -> IO(Unit):
+  match r:
+    case Fail{e}:
+      fail(e, 2)
+    case Done{recs}:
+      boot.season(~go, seed, RE.season(recs))
+
+def boot.text(~go: Boot.Cfg -> List<&2, Boot.Sample>, +seed: U32, +path: String, text: Maybe<&2, String>) -> IO(Unit):
+  match text:
+    case None{}:
+      fail("ERROR cannot read " ++ path, 2)
+    case Some{t}:
+      boot.parsed(~go, seed, parse(t))
+
+def boot.seeded(~go: Boot.Cfg -> List<&2, Boot.Sample>, +path: String, m: Maybe<&2, U32>) -> IO(Unit):
+  match m:
+    case None{}:
+      usage()
+    case Some{+seed}:
+      do IO<Unit>:
+        text : Maybe<&2, String> <- read_file(path)
+        boot.text(~go, seed, path, text)
+
+def boot(~go: Boot.Cfg -> List<&2, Boot.Sample>, args: List<String>) -> IO(Unit):
+  match args:
+    case Con{+path, Con{s, Nil{}}}:
+      boot.seeded(~go, path, U32.read(s))
+    case _:
+      usage()
+
+def route(args: List<String>, is_run: Bool, is_boot: Bool) -> IO(Unit):
+  match is_run is_boot:
+    case True{} _:
+      run(args)
+    case False{} True{}:
+      boot(~Boot.run.cpu, args)
+    case False{} False{}:
       usage()
 
 def dispatch(args: List<String>) -> IO(Unit):
   match args:
     case Con{prog, Con{+cmd, rest}}:
-      route(rest, String.eq(cmd, "run"))
+      route(rest, String.eq(cmd, "run"), String.eq(cmd, "boot"))
     case _:
       usage()
 
