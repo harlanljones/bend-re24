@@ -19,3 +19,4 @@ gate
 gate --verdict
 mkdir -p bin
 "$BEND" main.bend -o bin/re24
+./tests/run.sh

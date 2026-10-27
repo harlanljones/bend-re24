@@ -14,7 +14,6 @@ Project rules:
   `src/bootstrap.bend`. Every counted observation comes from `RE.observe`.
 - No `@unsafe`, no `f?`, no foreign effects (`import "./x.c"`) anywhere. IO effects appear only in
   `src/cli.bend`, `main.bend` and `gpu.bend`.
-- Before every commit run `./check.sh`; it must print ALL PROOFS CHECK and exit 0. Until every law
-  is proved, `bend PROOF.bend` may report open TODO laws but no type errors.
+- Before every commit run `./check.sh`; it must print ALL PROOFS CHECK and exit 0.
 - The Retrosheet notice stays in `README.md`, `fixtures/NOTICE` and the report footer.
 - Commits: Conventional Commits (`feat|fix|chore|docs|refactor|test[(scope)]: subject`).
