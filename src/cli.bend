@@ -6,6 +6,7 @@ import ./state.bend as Game
 import ./spec.bend as Spec
 import ./counts.bend as Counts
 import ./re24.bend as RE
+import ./decisions.bend as Dec
 
 # Reading a file
 # --------------
@@ -259,6 +260,42 @@ def cert(ts: List<&2, RE.Tot>, +table: List<&2, Spec.Row>, +i: Nat) -> Maybe<&2,
     case Con{RE.Tot{_, n}, rest}:
       cert.at(Nat.is_eq(n, Spec.row_sum(table, i)), i, cert(rest, table, 1n+i))
 
+# The decision book
+
+def opt(m: Maybe<&2, Nat>) -> String:
+  match m:
+    case None{}:
+      " NA"
+    case Some{x}:
+      sp(x)
+
+def zopt(m: Maybe<&2, Dec.Z>) -> String:
+  match m:
+    case None{}:
+      " NA"
+    case Some{z}:
+      " " ++ Dec.zshow(z)
+
+# `<tag> <kind> <bases> <outs>`
+def head(tag: String, c: Dec.Choice) -> String:
+  match c:
+    case Dec.Choice{kind, b, o, _, _}:
+      tag ++ " " ++ kind ++ sp(b) ++ sp(o)
+
+def be_lines(cs: List<&2, Dec.Choice>, vs: List<&2, Maybe<&2, Nat>>) -> List<&2, String>:
+  match cs vs:
+    case Con{c, cr} Con{v, vr}:
+      (head("BE", c) ++ opt(v)) <> be_lines(cr, vr)
+    case _ _:
+      Nil{}
+
+def dre_lines(cs: List<&2, Dec.Choice>, vs: List<&2, Maybe<&2, Dec.Z>>) -> List<&2, String>:
+  match cs vs:
+    case Con{c, cr} Con{v, vr}:
+      (head("DRE", c) ++ zopt(v)) <> dre_lines(cr, vr)
+    case _ _:
+      Nil{}
+
 def report(sea: RE.Season, +table: List<&2, Spec.Row>) -> String:
   match sea:
     case RE.Season{seen, good, bad, lines, +ts, _, _, halves, partial}:
@@ -268,7 +305,9 @@ def report(sea: RE.Season, +table: List<&2, Spec.Row>) -> String:
         ("PLAYS" ++ sp(plays(ts))) <>
         List.append(&2, String, lines,
           List.append(&2, String, re_lines(ts, 0n),
-            t_lines(List.sort(~TL, ~tl_le, t_rows(table, Nil{}))))), "\n")
+            List.append(&2, String, t_lines(List.sort(~TL, ~tl_le, t_rows(table, Nil{}))),
+              List.append(&2, String, be_lines(Dec.be_choices(), Dec.be_vals(ts)),
+                dre_lines(Dec.dre_choices(), Dec.dre_vals(ts)))))), "\n")
 
 # Effects
 # -------

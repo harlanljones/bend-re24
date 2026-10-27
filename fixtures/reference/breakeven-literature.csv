@@ -1,0 +1,8 @@
+kind,bases,outs,low_pct,high_pct,season,source_url
+steal2,1,0,70,75,2009-2011,https://blogs.fangraphs.com/breaking-down-stolen-base-break-even-points/
+steal2,1,1,70,75,2009-2011,https://blogs.fangraphs.com/breaking-down-stolen-base-break-even-points/
+steal2,1,2,70,75,2009-2011,https://blogs.fangraphs.com/breaking-down-stolen-base-break-even-points/
+steal3,2,0,78,78,2009-2011,https://blogs.fangraphs.com/breaking-down-stolen-base-break-even-points/
+steal3,2,1,69,69,2009-2011,https://blogs.fangraphs.com/breaking-down-stolen-base-break-even-points/
+steal3,2,2,88,88,2009-2011,https://blogs.fangraphs.com/breaking-down-stolen-base-break-even-points/
+steal2,1,0,73.5,73.5,2012,https://tht.fangraphs.com/stolen-base-attempts-an-algorithm-for-allocating-run-value/

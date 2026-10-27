@@ -46,11 +46,12 @@ type BreakEven struct {
 	BP *int64
 }
 
-// DeltaRE is a decision's change in run value, in 10^-7 runs.
+// DeltaRE is a decision's change in run value, in 10^-7 runs; nil when a
+// state it needs was never visited.
 type DeltaRE struct {
 	Kind string
 	State
-	Value int64
+	Value *int64
 }
 
 type Boot struct {
@@ -186,7 +187,7 @@ func (o *Output) add(f []string) error {
 	case "BE":
 		o.BreakEvens = append(o.BreakEvens, BreakEven{Kind: p.next(), State: p.state(), BP: p.opt()})
 	case "DRE":
-		o.DeltaREs = append(o.DeltaREs, DeltaRE{Kind: p.next(), State: p.state(), Value: p.int64()})
+		o.DeltaREs = append(o.DeltaREs, DeltaRE{Kind: p.next(), State: p.state(), Value: p.opt()})
 	case "BOOT":
 		b, seed, g := p.int(), p.int64(), p.int()
 		if p.err == nil && (seed < 0 || seed > 1<<32-1) {

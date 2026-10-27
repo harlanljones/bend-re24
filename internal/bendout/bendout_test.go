@@ -44,7 +44,7 @@ func TestParseSample(t *testing.T) {
 	if len(o.BreakEvens) != 2 || *o.BreakEvens[0].BP != 7325 || o.BreakEvens[1].BP != nil {
 		t.Errorf("break-evens = %+v", o.BreakEvens)
 	}
-	if len(o.DeltaREs) != 1 || o.DeltaREs[0].Value != -2043713 {
+	if len(o.DeltaREs) != 1 || o.DeltaREs[0].Value == nil || *o.DeltaREs[0].Value != -2043713 {
 		t.Errorf("DRE = %+v", o.DeltaREs)
 	}
 	if o.Boot != (Boot{1024, 2024, 2429}) {
