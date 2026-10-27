@@ -580,3 +580,23 @@ def Laws.half_resets(s, p):
   match s:
     case Game.State{inn, top, so, sb, away, home, rej}:
       resets_after(Game.slots(p, Game.half_of(Game.State{inn, top, so, sb, away, home, rej})), top, inn, so, sb, away, home, rej)
+
+# Legality
+# --------
+
+def implies_true(a: Bool) -> {Spec.implies(a, True{}) == True{} : Bool}:
+  match a:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def gate_legal(ok: Bool, +s: Game.State, +p: Game.Play) -> {Spec.implies(Spec.some(RE.observe.gate(ok, s, p)), ok) == True{} : Bool}:
+  match ok:
+    case False{}:
+      {==}
+    case True{}:
+      implies_true(Spec.some(RE.observe.gate(True{}, s, p)))
+
+def Laws.observed_legal(s, p):
+  gate_legal(Spec.legal(Game.bases(s), p), s, p)
