@@ -13,7 +13,9 @@ NOTICE = The information used here was obtained free of charge from and is copyr
 # Wall seconds of one command, from bash's `time`.
 TIME = bash -c 'TIMEFORMAT=%R; { time "$$@" > /dev/null; } 2>&1' --
 
-.PHONY: fetch ingest build gpu proofs run check fixtures compare time
+TEMPL ?= $(HOME)/go/bin/templ
+
+.PHONY: fetch ingest build gpu proofs run check fixtures compare time report
 
 build: bin/re24
 
@@ -37,6 +39,11 @@ run: bin/re24 data/plays-$(YEAR).csv
 	mkdir -p out
 	bin/re24 run data/plays-$(YEAR).csv > out/run-$(YEAR).txt
 	bin/re24 boot data/plays-$(YEAR).csv $(SEED) > out/boot-$(YEAR).txt
+	go run ./report -export out -run out/run-$(YEAR).txt -boot out/boot-$(YEAR).txt
+
+report: out/run-$(YEAR).txt
+	$(TEMPL) generate ./report
+	go run ./report -run out/run-$(YEAR).txt -boot out/boot-$(YEAR).txt -refs fixtures/reference -addr 127.0.0.1:8024
 
 # One line per mode: `<mode> <seconds>`, or `gpu FAILED`.
 time: bin/re24 data/plays-$(YEAR).csv

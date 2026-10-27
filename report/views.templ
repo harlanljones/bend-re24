@@ -1,0 +1,252 @@
+package main
+
+templ page(v pageView) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>bend-re24: 2024 RE24 and decision book</title>
+			<script src="/static/htmx.min.js"></script>
+			<style>
+				body { font-family: system-ui, sans-serif; max-width: 72rem; margin: 0 auto; padding: 1rem 1.5rem; line-height: 1.45; color: #1d1d1f; }
+				h1 { margin-bottom: 0.25rem; }
+				table { border-collapse: collapse; margin: 0.5rem 0 1.25rem; }
+				th, td { border: 1px solid #c8c8cc; padding: 0.3rem 0.6rem; text-align: right; vertical-align: top; }
+				th:first-child, td.name { text-align: left; }
+				caption { text-align: left; font-weight: 600; padding-bottom: 0.25rem; }
+				.grid button { display: block; width: 100%; font: inherit; text-align: right; border: 0; background: none; cursor: pointer; padding: 0.15rem; }
+				.grid button:hover, .grid button:focus-visible { background: #e8f0fe; outline: 2px solid #1a5fb4; }
+				.re { font-size: 1.1rem; font-weight: 600; }
+				.sub { display: block; color: #555; font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+				td { font-variant-numeric: tabular-nums; }
+				#detail { min-height: 2rem; border-left: 3px solid #1a5fb4; padding-left: 1rem; }
+				.never { color: #8a1c1c; }
+				svg text { font: 11px system-ui, sans-serif; fill: #1d1d1f; }
+				svg .grid-line { stroke: #ddd; }
+				svg .bar { fill: #1a5fb4; }
+				svg .bar.never { fill: #c64600; }
+				svg .ci { stroke: #000; stroke-width: 1.5; }
+				svg .lit { stroke: #2e7d32; stroke-width: 4; }
+				svg .lit-point { fill: #2e7d32; }
+				footer { margin-top: 2rem; border-top: 1px solid #c8c8cc; padding-top: 0.5rem; font-size: 0.9rem; white-space: pre-wrap; }
+			</style>
+		</head>
+		<body>
+			<h1>bend-re24: 2024 run expectancy</h1>
+			<p>Every Retrosheet 2024 play replayed through a proven Bend 2 scorebook; every number below is an exact integer ratio.</p>
+			<section aria-labelledby="summary-h">
+				<h2 id="summary-h">Summary</h2>
+				<ul>
+					<li>Games: { v.Summary.Seen } seen, { v.Summary.Good } replayed cleanly, { v.Summary.Bad } rejected</li>
+					<li>Plays counted: { v.Summary.Plays }</li>
+					<li>Half-innings: { v.Summary.Halves } complete, { v.Summary.Partial } partial (not counted)</li>
+					if v.Summary.Boot != "" {
+						<li>Bootstrap: { v.Summary.Boot }; 95% percentile intervals</li>
+					} else {
+						<li>Bootstrap: no output loaded; intervals show —</li>
+					}
+				</ul>
+				if len(v.Summary.BadGames) > 0 {
+					<h3>Rejected games</h3>
+					<ul>
+						for _, g := range v.Summary.BadGames {
+							<li>{ g }</li>
+						}
+					</ul>
+				}
+			</section>
+			<section aria-labelledby="grid-h">
+				<h2 id="grid-h">RE24</h2>
+				<p>Expected runs from each base-out state to the end of the half-inning: runs/visits, with the 95% bootstrap interval. Select a cell for its transitions.</p>
+				<table class="grid">
+					<thead>
+						<tr><th scope="col">Bases</th><th scope="col">0 outs</th><th scope="col">1 out</th><th scope="col">2 outs</th></tr>
+					</thead>
+					<tbody>
+						for _, row := range v.Grid {
+							<tr>
+								<th scope="row">{ row.Name }</th>
+								for _, c := range row.Cells {
+									<td>
+										<button type="button" hx-get={ c.URL } hx-target="#detail" aria-label={ c.Label + ": RE " + c.RE + ", details" }>
+											<span class="re">{ c.RE }</span>
+											<span class="sub">{ c.Frac }</span>
+											<span class="sub">{ c.CI }</span>
+										</button>
+									</td>
+								}
+							</tr>
+						}
+					</tbody>
+				</table>
+				<div id="detail" aria-live="polite"></div>
+			</section>
+			<section aria-labelledby="book-h">
+				<h2 id="book-h">Decision book</h2>
+				<p>Break-even success rates in percent, with the 95% bootstrap interval. Values of 100% or more mean the move never pays. Literature values are shown for context, labeled by season, and are not tested. <cite>The Book</cite> (Tango, Lichtman, Dolphin) is not compared: its tables were not found publicly.</p>
+				for _, t := range v.BE {
+					<table>
+						<caption>{ t.Title } (break-even)</caption>
+						<thead>
+							<tr><th scope="col">Bases</th><th scope="col">Outs</th><th scope="col">Break-even</th><th scope="col">95% CI</th><th scope="col">Literature</th></tr>
+						</thead>
+						<tbody>
+							for _, r := range t.Rows {
+								<tr>
+									<td class="name">{ r.State }</td>
+									<td>{ r.Outs }</td>
+									if r.Never {
+										<td class="never">{ r.Value } (never pays)</td>
+									} else {
+										<td>{ r.Value }</td>
+									}
+									<td>{ r.CI }</td>
+									<td class="name">
+										for i, l := range r.Lit {
+											if i > 0 {
+												<br/>
+											}
+											{ l.Text } (<a href={ templ.URL(l.URL) }>{ l.Season }</a>)
+										}
+									</td>
+								</tr>
+							}
+							if len(t.Rows) == 0 {
+								<tr><td class="name" colspan="5">no lines in this run</td></tr>
+							}
+						</tbody>
+					</table>
+				}
+				@chart(v.Chart)
+				for _, t := range v.DRE {
+					<table>
+						<caption>{ t.Title } (ΔRE, runs)</caption>
+						<thead>
+							<tr><th scope="col">Bases</th><th scope="col">Outs</th><th scope="col">ΔRE</th><th scope="col">95% CI</th></tr>
+						</thead>
+						<tbody>
+							for _, r := range t.Rows {
+								<tr>
+									<td class="name">{ r.State }</td>
+									<td>{ r.Outs }</td>
+									<td>{ r.Value }</td>
+									<td>{ r.CI }</td>
+								</tr>
+							}
+							if len(t.Rows) == 0 {
+								<tr><td class="name" colspan="4">no lines in this run</td></tr>
+							}
+						</tbody>
+					</table>
+				}
+				<p>An intentional walk has no break-even rate without a batter-specific outcome model, so its book number is its run cost: RE after the walk minus RE before it.</p>
+			</section>
+			<section aria-labelledby="laws-h">
+				<h2 id="laws-h">Laws proved vs checked</h2>
+				<h3>Proved in Bend 2 (LAWS.bend, PROOF.bend)</h3>
+				<ul>
+					<li><code>box_balances_away</code>, <code>box_balances_home</code>: each team's completed plate appearances equal its runs plus putouts plus runners left and still on base (OBR 9.03(c))</li>
+					<li><code>outs_below_three</code>: the scorebook never shows three or more outs</li>
+					<li><code>half_resets</code>: after a play the same side bats, or the next half starts with bases empty and no outs</li>
+					<li><code>observed_legal</code>: an observed play moves no runner back and lets no runner pass another</li>
+					<li><code>runs_at_most_four</code>: an observed play scores at most four runs</li>
+					<li><code>rows_sum</code>: the transition counts out of each state sum to the plays observed in it</li>
+				</ul>
+				<h3>Checked at runtime by Bend</h3>
+				<ul>
+					<li>Chadwick's claims, play by play: state before the play, runs, outs, end bases, and runs to the end of the half (fate)</li>
+					<li>The transition table's total out of each state against the RE visit count</li>
+				</ul>
+				<h3>Checked by tests</h3>
+				<ul>
+					<li>Bootstrap intervals are identical across thread counts</li>
+				</ul>
+				<h3>Checked externally</h3>
+				<ul>
+					<li>The RE table matches FanGraphs 2024 within ±0.01 runs</li>
+					<li>Literature break-evens are displayed, not tested</li>
+				</ul>
+			</section>
+			<section aria-labelledby="method-h">
+				<h2 id="method-h">Method</h2>
+				<p>Retrosheet 2024 regular-season events, decoded by Chadwick <code>cwevent</code>, innings 1–8, every event. Each play is replayed through the scorebook; a state's RE is the runs scored from that play to the end of its half-inning over its visits, counted only in complete half-innings. Break-evens and ΔRE use RE in units of 10<sup>-7</sup> runs. Intervals resample whole games with replacement (B = 1024) and take the 2.5th and 97.5th percentiles.</p>
+			</section>
+			<footer>{ v.Notice }</footer>
+		</body>
+	</html>
+}
+
+templ chart(c chartView) {
+	if len(c.Bars) > 0 {
+		<figure>
+			<svg viewBox={ c.ViewBox } width={ c.Width } height={ c.Height } role="img" aria-labelledby="chart-title">
+				<title id="chart-title">Break-even success rates for steals and bunts, with 95% intervals and literature values</title>
+				for _, t := range c.Ticks {
+					<line class="grid-line" x1={ t.X } x2={ t.X } y1={ c.GridY1 } y2={ c.GridY2 }></line>
+					<text x={ t.X } y="14" text-anchor="middle">{ t.Label }</text>
+				}
+				for _, b := range c.Bars {
+					<text x="4" y={ b.LabelY }>{ b.Label }</text>
+					if b.HasBar {
+						if b.Never {
+							<rect class="bar never" x={ c.X0 } y={ b.BarY } width={ b.W } height="12"></rect>
+						} else {
+							<rect class="bar" x={ c.X0 } y={ b.BarY } width={ b.W } height="12"></rect>
+						}
+					}
+					if b.Whisker != nil {
+						<line class="ci" x1={ b.Whisker.X1 } x2={ b.Whisker.X2 } y1={ b.Whisker.Y } y2={ b.Whisker.Y }></line>
+						if b.Whisker.CapLo {
+							<line class="ci" x1={ b.Whisker.X1 } x2={ b.Whisker.X1 } y1={ b.Whisker.CapY1 } y2={ b.Whisker.CapY2 }></line>
+						}
+						if b.Whisker.CapHi {
+							<line class="ci" x1={ b.Whisker.X2 } x2={ b.Whisker.X2 } y1={ b.Whisker.CapY1 } y2={ b.Whisker.CapY2 }></line>
+						}
+					}
+					for _, l := range b.Lits {
+						if l.Point {
+							<polygon class="lit-point" transform={ l.Transform } points="0,-4 4,0 0,4 -4,0"><title>{ l.Title }</title></polygon>
+						} else {
+							<line class="lit" x1={ l.X1 } x2={ l.X2 } y1={ l.Y } y2={ l.Y }><title>{ l.Title }</title></line>
+						}
+					}
+					<text x={ b.ValueX } y={ b.ValueY }>{ b.Value }</text>
+				}
+				<g transform={ "translate(" + c.X0 + ",0)" }>
+					<rect class="bar" x="0" y={ c.LegendY } width="12" height="10"></rect>
+					<text x="18" y={ c.LegendY } dy="9">2024 break-even</text>
+					<line class="ci" x1="130" x2="154" y1={ c.LegendY } y2={ c.LegendY } transform="translate(0,5)"></line>
+					<text x="160" y={ c.LegendY } dy="9">95% CI</text>
+					<line class="lit" x1="220" x2="244" y1={ c.LegendY } y2={ c.LegendY } transform="translate(0,5)"></line>
+					<text x="250" y={ c.LegendY } dy="9">literature (range or point)</text>
+				</g>
+			</svg>
+			<figcaption>Break-even success rate per state; bars at 100% mean the move never pays.</figcaption>
+		</figure>
+	}
+}
+
+templ statePanel(v stateView) {
+	<h3>{ v.Name }</h3>
+	<p>RE { v.RE } ({ v.Frac }); 95% CI { v.CI }</p>
+	<table>
+		<caption>Transitions from { v.Name }</caption>
+		<thead>
+			<tr><th scope="col">To</th><th scope="col">Runs</th><th scope="col">Count</th><th scope="col">Share</th></tr>
+		</thead>
+		<tbody>
+			for _, r := range v.Rows {
+				<tr>
+					<td class="name">{ r.To }</td>
+					<td>{ r.Runs }</td>
+					<td>{ r.Count }</td>
+					<td>{ r.Share }</td>
+				</tr>
+			}
+		</tbody>
+		<tfoot>
+			<tr><th scope="row" colspan="2">Total</th><td>{ v.Total }</td><td></td></tr>
+		</tfoot>
+	</table>
+}
