@@ -6,7 +6,7 @@ CHADWICK_SHA256 = c80d24dfd37707719c3e81883417a57339c4d60865e39ae73aebdbbfe21902
 CWEVENT = .tools/chadwick/bin/cwevent
 SEED ?= 2024
 
-.PHONY: fetch
+.PHONY: fetch ingest
 
 $(CWEVENT):
 	mkdir -p .tools/src
@@ -20,3 +20,11 @@ fetch: data/raw/$(YEAR)/TEAM$(YEAR)
 
 data/raw/$(YEAR)/TEAM$(YEAR):
 	ingest/fetch.sh $(RETRO_SHA) $(YEAR) data/raw/$(YEAR)
+
+ingest: data/plays-$(YEAR).csv
+
+data/cwevent-$(YEAR).csv: $(CWEVENT) data/raw/$(YEAR)/TEAM$(YEAR)
+	cd data/raw/$(YEAR) && $(abspath $(CWEVENT)) -Q -n -y $(YEAR) -f 0,1,2,4,34,35,40,58-61 -x 3,13,14,45,55 $(YEAR)*.EV? > ../../cwevent-$(YEAR).csv
+
+data/plays-$(YEAR).csv: data/cwevent-$(YEAR).csv ingest/main.go
+	go run ./ingest -in data/cwevent-$(YEAR).csv -plays data/plays-$(YEAR).csv -games data/games-$(YEAR).csv
