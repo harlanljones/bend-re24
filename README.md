@@ -124,7 +124,7 @@ The last one is what `run.cpu` does. `gpu.bend` keeps the single shared tree (`B
 
 ## Reproduce
 
-Requirements: Bend 2.0.39 at `~/.bend/bin/bend` (override with `BEND=`), clang ≥ 14, Go 1.26, curl, and a C toolchain for Chadwick. `make gpu` and `make time` also need clang ≥ 19 and CUDA 12 or 13.
+Requirements: Bend 2.0.39 at `~/.bend/bin/bend` (override with `BEND=`), clang ≥ 14, Go 1.26, curl, and a C toolchain for Chadwick. `bend PROOF.bend --verdict` builds the BendTT kernel on first use and needs Lean v4.34.0 on `PATH` for that (`elan`, toolchain `leanprover/lean4:v4.34.0`); CI installs it. `make gpu` and `make time` also need clang ≥ 19 and CUDA 12 or 13.
 
 ```sh
 make ingest && make check && make run && make compare && make report

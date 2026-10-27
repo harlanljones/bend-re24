@@ -14,6 +14,7 @@ Source: https://github.com/bendlang/bend (README), local `bend guide` (`~/.bend/
   - `U32` wraps mod 2^32.
   - `F32` is axiomatic: no float proofs are possible. This repo uses no floats.
 - Native builds: `bend file.bend -o file` needs clang 14+, and 19+ when `!` (GPU) is used (`GUIDE.md` line 550). On Linux, native builds need glibc 2.34+.
+- `--verdict` runs a kernel built from `bendtt.lean` and cached under `~/.bend/bendtt/<hash>/`. With no cached kernel, Bend 2.0.39 stops with `the kernel did not build (lean: Executable not found in $PATH: "lean"); --verdict needs Lean v4.34.0 (elan toolchain leanprover/lean4:v4.34.0), or $BENDTT set to a built kernel`. Checked in a fresh `HOME` on 2026-10-26: after installing that toolchain with elan, the kernel built and `./check.sh` passed.
 - Platforms: the Bend README says it "works best on the back-end, on Linux or macOS"; bend-kit's README states "Windows is not supported". No Windows.
 - Measured here: a 190,000-line, 5.6 MB CSV parsed in 0.14 s (chunked `File.read` → `String.lines` → `String.split` → `Nat.read`); `bend PROOF.bend` on bend-winprob's 975-line proof in 0.12 s, `--verdict` in 0.17 s.
 

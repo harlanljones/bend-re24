@@ -1,0 +1,33 @@
+name: check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    env:
+      BEND_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - name: Install Bend 2.0.39
+        run: |
+          curl -fsSL -o bend.tgz https://github.com/bendlang/bend/releases/download/v2.0.39/bend-2.0.39-linux-x64.tar.gz
+          echo "6cf462fd8f70b094a4950ebb709a9c4ffd8f1d1189d9cedf1fd63cd5d041c7ab  bend.tgz" | sha256sum -c -
+          tar xzf bend.tgz
+          mkdir -p ~/.bend/bin && mv bend/bin/bend ~/.bend/bin/ && mv bend/bend2 bend/guide ~/.bend/
+          echo "$HOME/.bend/bin" >> "$GITHUB_PATH"
+      # `--verdict` builds the BendTT kernel on first use and needs this Lean.
+      - name: Install Lean v4.34.0
+        run: |
+          curl -fsSL -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
+          sh elan-init.sh -y --no-modify-path --default-toolchain leanprover/lean4:v4.34.0
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Proofs, verdict, build, fixture tests
+        run: ./check.sh
+      - name: Go tests
+        run: go test ./...
