@@ -673,3 +673,403 @@ def Laws.rows_sum(os, i):
     case Con{Spec.Obs{f, to, r}, t}:
       %Laws.rows_sum(t, i) : {Spec.row_sum(Counts.add(Counts.tally(t), Counts.row_is(Counts.tally(t), f), Spec.Obs{f, to, r}), i) == Nat.add(Game.b2n(Nat.is_eq(f, i)), _) : Nat}
       add_sum(Counts.tally(t), Counts.row_is(Counts.tally(t), f), f, to, r, i, {==})
+
+# Runs on one play
+# -----------------
+# The take pass leaves runs alone; each of the four placements adds at most
+# one; so the side at bat gains at most four runs on a play.
+
+def BD(b: Bool, t: Type, f: Type) -> Type:
+  match b:
+    case True{}:
+      t
+    case False{}:
+      f
+
+def le_refl(n: Nat) -> {Nat.is_le(n, n) == True{} : Bool}:
+  match n:
+    case 0n:
+      {==}
+    case 1n+p:
+      le_refl(p)
+
+def le_succ(a: Nat, b: Nat, w: {Nat.is_le(a, b) == True{} : Bool}) -> {Nat.is_le(a, 1n+b) == True{} : Bool}:
+  match a b:
+    case 0n _:
+      {==}
+    case 1n+p 0n:
+      %w : BD(_, {Nat.is_le(1n+p, 1n) == True{} : Bool}, Unit)
+      Unit{}
+    case 1n+p 1n+q:
+      le_succ(p, q, w)
+
+def le_add4(+n: Nat) -> {Nat.is_le(n, 4n+n) == True{} : Bool}:
+  le_succ(n, 3n+n, le_succ(n, 2n+n, le_succ(n, 1n+n, le_succ(n, n, le_refl(n)))))
+
+# a <= 4 + b, so a - b <= 4.
+def sub_le(a: Nat, b: Nat, w: {Nat.is_le(a, 4n+b) == True{} : Bool}) -> {Nat.is_le(Nat.sub(a, b), 4n) == True{} : Bool}:
+  match a b:
+    case 0n _:
+      {==}
+    case 1n+p 0n:
+      w
+    case 1n+p 1n+q:
+      sub_le(p, q, w)
+
+def RLe(-b: Nat, h: Game.Half) -> Type:
+  match h:
+    case Game.Half{bs, l, o}:
+      {Nat.is_le(Game.line_runs(l), b) == True{} : Bool}
+
+def OkL(-b: Nat, m: Maybe<Game.Half>) -> Type:
+  match m:
+    case None{}:
+      Unit
+    case Some{h}:
+      RLe(b, h)
+
+def PLe(-b: Nat, p: Game.Pending) -> Type:
+  match p:
+    case Game.Pending{h, n, r3, r2, r1, bd}:
+      RLe(b, h)
+
+def OkPL(-b: Nat, m: Maybe<&2, Game.Pending>) -> Type:
+  match m:
+    case None{}:
+      Unit
+    case Some{p}:
+      PLe(b, p)
+
+def take1_l(-b: Nat, h: Game.Half, w: RLe(b, h)) -> OkL(b, Game.take1(h)):
+  match h:
+    case Game.Half{bs, l, o}:
+      match bs:
+        case Game.Bases{b1, b2, b3}:
+          match b1:
+            case True{}:
+              w
+            case False{}:
+              Unit{}
+
+def take2_l(-b: Nat, h: Game.Half, w: RLe(b, h)) -> OkL(b, Game.take2(h)):
+  match h:
+    case Game.Half{bs, l, o}:
+      match bs:
+        case Game.Bases{b1, b2, b3}:
+          match b2:
+            case True{}:
+              w
+            case False{}:
+              Unit{}
+
+def take3_l(-b: Nat, h: Game.Half, w: RLe(b, h)) -> OkL(b, Game.take3(h)):
+  match h:
+    case Game.Half{bs, l, o}:
+      match bs:
+        case Game.Bases{b1, b2, b3}:
+          match b3:
+            case True{}:
+              w
+            case False{}:
+              Unit{}
+
+def take_bat_l(-b: Nat, h: Game.Half, w: RLe(b, h)) -> RLe(b, Game.take_bat(h)):
+  match h:
+    case Game.Half{bs, l, o}:
+      match l:
+        case Game.Line{bat, runs, lo, lob}:
+          w
+
+def take_origin_l(k: Nat, -b: Nat, h: Game.Half, w: RLe(b, h)) -> OkL(b, Game.take_origin(k, h)):
+  match k:
+    case 0n:
+      take3_l(b, h, w)
+    case 1n+k1:
+      match k1:
+        case 0n:
+          take2_l(b, h, w)
+        case 1n+k2:
+          match k2:
+            case 0n:
+              take1_l(b, h, w)
+            case 1n+k3:
+              take_bat_l(b, h, w)
+
+def take_done_l(m: Maybe<Game.Half>, -b: Nat, p: Game.Pending, w: OkL(b, m)) -> OkPL(b, Game.take_slot_done(m, p)):
+  match m:
+    case None{}:
+      Unit{}
+    case Some{h}:
+      match p:
+        case Game.Pending{_, n, r3, r2, r1, bd}:
+          w
+
+def take_dest_move_l(d: Game.Dest, +k: Nat, -b: Nat, p: Game.Pending, w: PLe(b, p)) -> OkPL(b, Game.take_slot_dest(True{}, k, p)):
+  match p:
+    case Game.Pending{+h, n, r3, r2, r1, bd}:
+      take_done_l(Game.take_origin(k, h), b, Game.Pending{h, n, r3, r2, r1, bd}, take_origin_l(k, b, h, w))
+
+def take_dest_absent_l(k: Nat, -b: Nat, p: Game.Pending, w: PLe(b, p)) -> OkPL(b, Game.take_slot_dest(False{}, k, p)):
+  match p:
+    case Game.Pending{h, n, r3, r2, r1, bd}:
+      w
+
+def take_dest_l(d: Game.Dest, +k: Nat, -b: Nat, p: Game.Pending, w: PLe(b, p)) -> OkPL(b, Game.take_slot_dest(Game.is_moved(d), k, p)):
+  match d:
+    case Game.Absent{}:
+      take_dest_absent_l(k, b, p, w)
+    case Game.Out{}:
+      take_dest_move_l(d, k, b, p, w)
+    case Game.Run{}:
+      take_dest_move_l(d, k, b, p, w)
+    case Game.To1{}:
+      take_dest_move_l(d, k, b, p, w)
+    case Game.To2{}:
+      take_dest_move_l(d, k, b, p, w)
+    case Game.To3{}:
+      take_dest_move_l(d, k, b, p, w)
+
+def take_slot_l(+k: Nat, -b: Nat, +p: Game.Pending, w: PLe(b, p)) -> OkPL(b, Game.take_slot(k, p)):
+  match p:
+    case Game.Pending{h, n, r3, r2, r1, bd}:
+      +q = {Game.Pending{h, n, r3, r2, r1, bd} : Game.Pending}
+      take_dest_l(Game.p_dest(k, q), k, b, q, w)
+
+def bind_take_l(+k: Nat, -b: Nat, m: Maybe<&2, Game.Pending>, w: OkPL(b, m)) -> OkPL(b, Game.bind_take(k, m)):
+  match m:
+    case None{}:
+      Unit{}
+    case Some{p}:
+      take_slot_l(k, b, p, w)
+
+def take_all_l(+p: Game.Play, -b: Nat, +h: Game.Half, w: RLe(b, h)) -> OkPL(b, Game.take_all(p, h)):
+  match p:
+    case Game.Play{+r3, +r2, +r1, +bd}:
+      bind_take_l(3n, b, Game.bind_take(2n, Game.bind_take(1n, Game.take_slot(0n, Game.Pending{h, 0n, r3, r2, r1, bd}))),
+        bind_take_l(2n, b, Game.bind_take(1n, Game.take_slot(0n, Game.Pending{h, 0n, r3, r2, r1, bd})),
+          bind_take_l(1n, b, Game.take_slot(0n, Game.Pending{h, 0n, r3, r2, r1, bd}),
+            take_slot_l(0n, b, Game.Pending{h, 0n, r3, r2, r1, bd}, w))))
+
+def put_l(d: Game.Dest, +b: Nat, h: Game.Half, w: RLe(b, h)) -> OkL(1n+b, Game.put(d, h)):
+  match d:
+    case Game.Absent{}:
+      Unit{}
+    case Game.Out{}:
+      match h:
+        case Game.Half{bs, l, o}:
+          match l:
+            case Game.Line{bat, runs, lo, lob}:
+              le_succ(runs, b, w)
+    case Game.Run{}:
+      match h:
+        case Game.Half{bs, l, o}:
+          match l:
+            case Game.Line{bat, runs, lo, lob}:
+              w
+    case Game.To1{}:
+      match h:
+        case Game.Half{bs, l, o}:
+          match bs:
+            case Game.Bases{b1, b2, b3}:
+              match b1:
+                case True{}:
+                  Unit{}
+                case False{}:
+                  match l:
+                    case Game.Line{bat, runs, lo, lob}:
+                      le_succ(runs, b, w)
+    case Game.To2{}:
+      match h:
+        case Game.Half{bs, l, o}:
+          match bs:
+            case Game.Bases{b1, b2, b3}:
+              match b2:
+                case True{}:
+                  Unit{}
+                case False{}:
+                  match l:
+                    case Game.Line{bat, runs, lo, lob}:
+                      le_succ(runs, b, w)
+    case Game.To3{}:
+      match h:
+        case Game.Half{bs, l, o}:
+          match bs:
+            case Game.Bases{b1, b2, b3}:
+              match b3:
+                case True{}:
+                  Unit{}
+                case False{}:
+                  match l:
+                    case Game.Line{bat, runs, lo, lob}:
+                      le_succ(runs, b, w)
+
+def place_done_l(m: Maybe<Game.Half>, -b: Nat, e: Nat, p: Game.Pending, w: OkL(b, m)) -> OkPL(b, Game.place_slot_done(m, e, p)):
+  match m:
+    case None{}:
+      Unit{}
+    case Some{h}:
+      match p:
+        case Game.Pending{_, n, r3, r2, r1, bd}:
+          w
+
+def place_dest_absent_l(+b: Nat, p: Game.Pending, w: PLe(b, p)) -> OkPL(1n+b, Game.place_slot_dest(Game.Absent{}, p)):
+  match p:
+    case Game.Pending{h, n, r3, r2, r1, bd}:
+      match h:
+        case Game.Half{bs, l, o}:
+          match l:
+            case Game.Line{bat, runs, lo, lob}:
+              le_succ(runs, b, w)
+
+def place_dest_move_l(+d: Game.Dest, +b: Nat, p: Game.Pending, w: PLe(b, p)) -> OkPL(1n+b, Game.place_slot_dest.go(True{}, d, p)):
+  match p:
+    case Game.Pending{+h, +n, r3, r2, r1, bd}:
+      match n:
+        case 0n:
+          Unit{}
+        case 1n+e:
+          place_done_l(Game.put(d, h), 1n+b, e, Game.Pending{h, n, r3, r2, r1, bd}, put_l(d, b, h, w))
+
+def place_dest_l(d: Game.Dest, +b: Nat, p: Game.Pending, w: PLe(b, p)) -> OkPL(1n+b, Game.place_slot_dest(d, p)):
+  match d:
+    case Game.Absent{}:
+      place_dest_absent_l(b, p, w)
+    case Game.Out{}:
+      place_dest_move_l(d, b, p, w)
+    case Game.Run{}:
+      place_dest_move_l(d, b, p, w)
+    case Game.To1{}:
+      place_dest_move_l(d, b, p, w)
+    case Game.To2{}:
+      place_dest_move_l(d, b, p, w)
+    case Game.To3{}:
+      place_dest_move_l(d, b, p, w)
+
+def place_slot_l(+k: Nat, +b: Nat, +p: Game.Pending, w: PLe(b, p)) -> OkPL(1n+b, Game.place_slot(k, p)):
+  match p:
+    case Game.Pending{h, n, r3, r2, r1, bd}:
+      +q = {Game.Pending{h, n, r3, r2, r1, bd} : Game.Pending}
+      place_dest_l(Game.p_dest(k, q), b, q, w)
+
+def bind_place_l(+k: Nat, +b: Nat, m: Maybe<&2, Game.Pending>, w: OkPL(b, m)) -> OkPL(1n+b, Game.bind_place(k, m)):
+  match m:
+    case None{}:
+      Unit{}
+    case Some{p}:
+      place_slot_l(k, b, p, w)
+
+def finish_l(-b: Nat, m: Maybe<&2, Game.Pending>, w: OkPL(b, m)) -> OkL(b, Game.finish(m)):
+  match m:
+    case None{}:
+      Unit{}
+    case Some{p}:
+      match p:
+        case Game.Pending{h, n, r3, r2, r1, bd}:
+          match n:
+            case 0n:
+              w
+            case 1n+e:
+              Unit{}
+
+def put_all_l(+b: Nat, +m: Maybe<&2, Game.Pending>, w: OkPL(b, m)) -> OkL(4n+b, Game.put_all(m)):
+  finish_l(4n+b, Game.bind_place(3n, Game.bind_place(2n, Game.bind_place(1n, Game.bind_place(0n, m)))),
+    bind_place_l(3n, 3n+b, Game.bind_place(2n, Game.bind_place(1n, Game.bind_place(0n, m))),
+      bind_place_l(2n, 2n+b, Game.bind_place(1n, Game.bind_place(0n, m)),
+        bind_place_l(1n, 1n+b, Game.bind_place(0n, m), bind_place_l(0n, b, m, w)))))
+
+def slots_l(+p: Game.Play, +b: Nat, +h: Game.Half, w: RLe(b, h)) -> OkL(4n+b, Game.slots(p, h)):
+  put_all_l(b, Game.take_all(p, h), take_all_l(p, b, h, w))
+
+def runs_close_top(o: Nat, -inn: Nat, -so: Nat, -sb: Game.Bases, +away: Game.Line, -home: Game.Line, -rej: Nat, -bs: Game.Bases, l: Game.Line, w: {Nat.is_le(Game.line_runs(l), 4n+Game.line_runs(away)) == True{} : Bool})
+  -> {Nat.is_le(Game.away_runs(Game.close(o, Game.State{inn, True{}, so, sb, away, home, rej}, bs, l)), 4n+Game.line_runs(away)) == True{} : Bool}:
+  match o:
+    case 0n:
+      w
+    case 1n+o1:
+      match o1:
+        case 0n:
+          w
+        case 1n+o2:
+          match o2:
+            case 0n:
+              w
+            case 1n+o3:
+              match o3:
+                case 0n:
+                  match l:
+                    case Game.Line{bat, runs, lo, lob}:
+                      w
+                case 1n+o4:
+                  le_add4(Game.line_runs(away))
+
+def runs_after_top(m: Maybe<Game.Half>, -inn: Nat, -so: Nat, -sb: Game.Bases, +away: Game.Line, -home: Game.Line, -rej: Nat, w: OkL(4n+Game.line_runs(away), m))
+  -> {Nat.is_le(Game.away_runs(Game.after(Game.State{inn, True{}, so, sb, away, home, rej}, m)), 4n+Game.line_runs(away)) == True{} : Bool}:
+  match m:
+    case None{}:
+      le_add4(Game.line_runs(away))
+    case Some{h}:
+      match h:
+        case Game.Half{bs, l, o}:
+          runs_close_top(o, inn, so, sb, away, home, rej, bs, l, w)
+
+def runs_close_bot(o: Nat, -inn: Nat, -so: Nat, -sb: Game.Bases, -away: Game.Line, +home: Game.Line, -rej: Nat, -bs: Game.Bases, l: Game.Line, w: {Nat.is_le(Game.line_runs(l), 4n+Game.line_runs(home)) == True{} : Bool})
+  -> {Nat.is_le(Game.home_runs(Game.close(o, Game.State{inn, False{}, so, sb, away, home, rej}, bs, l)), 4n+Game.line_runs(home)) == True{} : Bool}:
+  match o:
+    case 0n:
+      w
+    case 1n+o1:
+      match o1:
+        case 0n:
+          w
+        case 1n+o2:
+          match o2:
+            case 0n:
+              w
+            case 1n+o3:
+              match o3:
+                case 0n:
+                  match l:
+                    case Game.Line{bat, runs, lo, lob}:
+                      w
+                case 1n+o4:
+                  le_add4(Game.line_runs(home))
+
+def runs_after_bot(m: Maybe<Game.Half>, -inn: Nat, -so: Nat, -sb: Game.Bases, -away: Game.Line, +home: Game.Line, -rej: Nat, w: OkL(4n+Game.line_runs(home), m))
+  -> {Nat.is_le(Game.home_runs(Game.after(Game.State{inn, False{}, so, sb, away, home, rej}, m)), 4n+Game.line_runs(home)) == True{} : Bool}:
+  match m:
+    case None{}:
+      le_add4(Game.line_runs(home))
+    case Some{h}:
+      match h:
+        case Game.Half{bs, l, o}:
+          runs_close_bot(o, inn, so, sb, away, home, rej, bs, l, w)
+
+# The side at bat gains at most four runs on a play.
+def step_runs(+s: Game.State, +p: Game.Play) -> {Nat.is_le(RE.side_runs(Game.is_top(s), Game.step(s, p)), 4n+RE.side_runs(Game.is_top(s), s)) == True{} : Bool}:
+  match s:
+    case Game.State{inn, top, so, sb, away, home, rej}:
+      match top:
+        case True{}:
+          runs_after_top(Game.slots(p, Game.Half{sb, away, so}), inn, so, sb, away, home, rej,
+            slots_l(p, Game.line_runs(away), Game.Half{sb, away, so}, le_refl(Game.line_runs(away))))
+        case False{}:
+          runs_after_bot(Game.slots(p, Game.Half{sb, home, so}), inn, so, sb, away, home, rej,
+            slots_l(p, Game.line_runs(home), Game.Half{sb, home, so}, le_refl(Game.line_runs(home))))
+
+def kept_runs(ok: Bool, +s: Game.State, +t: Game.State, w: {Nat.is_le(RE.side_runs(Game.is_top(s), t), 4n+RE.side_runs(Game.is_top(s), s)) == True{} : Bool})
+  -> {Spec.runs_ok(RE.observe.kept(ok, s, t)) == True{} : Bool}:
+  match ok:
+    case False{}:
+      {==}
+    case True{}:
+      sub_le(RE.side_runs(Game.is_top(s), t), RE.side_runs(Game.is_top(s), s), w)
+
+def gate_runs(ok: Bool, +s: Game.State, +p: Game.Play) -> {Spec.runs_ok(RE.observe.gate(ok, s, p)) == True{} : Bool}:
+  match ok:
+    case False{}:
+      {==}
+    case True{}:
+      kept_runs(Nat.is_eq(Game.rejected(s), Game.rejected(Game.step(s, p))), s, Game.step(s, p), step_runs(s, p))
+
+def Laws.runs_at_most_four(s, p):
+  gate_runs(Spec.legal(Game.bases(s), p), s, p)
