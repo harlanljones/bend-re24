@@ -600,3 +600,76 @@ def gate_legal(ok: Bool, +s: Game.State, +p: Game.Play) -> {Spec.implies(Spec.so
 
 def Laws.observed_legal(s, p):
   gate_legal(Spec.legal(Game.bases(s), p), s, p)
+
+# Counting
+# --------
+
+def BDisc(b: Bool) -> Type:
+  match b:
+    case True{}:
+      Empty
+    case False{}:
+      Unit
+
+def false_true(e: {False{} == True{} : Bool}) -> Empty:
+  %e : BDisc(_)
+  Unit{}
+
+def eq_of_is_eq(a: Nat, b: Nat, e: {Nat.is_eq(a, b) == True{} : Bool}) -> {a == b : Nat}:
+  match a b:
+    case 0n 0n:
+      {==}
+    case 0n 1n+q:
+      Empty.absurd({0n == 1n+q : Nat}, false_true(e))
+    case 1n+p 0n:
+      Empty.absurd({1n+p == 0n : Nat}, false_true(e))
+    case 1n+p 1n+q:
+      %eq_of_is_eq(p, q, e) : {1n+p == 1n+_ : Nat}
+      {==}
+
+def bump_sum(cs: List<&2, Spec.Cell>, hit: Bool, +to: Nat, +r: Nat) -> {Spec.cells_sum(Counts.bump(cs, hit, to, r)) == 1n+Spec.cells_sum(cs) : Nat}:
+  match cs hit:
+    case Nil{} _:
+      {==}
+    case Con{Spec.Cell{t, x, n}, rest} True{}:
+      {==}
+    case Con{Spec.Cell{t, x, n}, +rest} False{}:
+      %sym(Nat, Spec.cells_sum(Counts.bump(rest, Counts.cell_is(rest, to, r), to, r)), 1n+Spec.cells_sum(rest), bump_sum(rest, Counts.cell_is(rest, to, r), to, r)) : {Nat.add(n, _) == 1n+Nat.add(n, Spec.cells_sum(rest)) : Nat}
+      %add_succ(n, Spec.cells_sum(rest)) : {_ == 1n+Nat.add(n, Spec.cells_sum(rest)) : Nat}
+      {==}
+
+def when_one(b: Bool) -> {Nat.add(Spec.when(b, 1n), 0n) == Nat.add(Game.b2n(b), 0n) : Nat}:
+  match b:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+def when_succ(b: Bool, -x: Nat, -y: Nat) -> {Nat.add(Spec.when(b, 1n+x), y) == Nat.add(Game.b2n(b), Nat.add(Spec.when(b, x), y)) : Nat}:
+  match b:
+    case True{}:
+      {==}
+    case False{}:
+      {==}
+
+# One more observation from f adds one to f's row total and nothing elsewhere.
+def add_sum(t: List<&2, Spec.Row>, hit: Bool, +f: Nat, +to: Nat, +r: Nat, +i: Nat, h: {hit == Counts.row_is(t, f) : Bool})
+  -> {Spec.row_sum(Counts.add(t, hit, Spec.Obs{f, to, r}), i) == Nat.add(Game.b2n(Nat.is_eq(f, i)), Spec.row_sum(t, i)) : Nat}:
+  match t hit:
+    case Nil{} _:
+      when_one(Nat.is_eq(f, i))
+    case Con{Spec.Row{+g, +cs}, +rest} True{}:
+      %sym(Nat, Spec.cells_sum(Counts.bump(cs, Counts.cell_is(cs, to, r), to, r)), 1n+Spec.cells_sum(cs), bump_sum(cs, Counts.cell_is(cs, to, r), to, r)) : {Nat.add(Spec.when(Nat.is_eq(g, i), _), Spec.row_sum(rest, i)) == Nat.add(Game.b2n(Nat.is_eq(f, i)), Nat.add(Spec.when(Nat.is_eq(g, i), Spec.cells_sum(cs)), Spec.row_sum(rest, i))) : Nat}
+      %eq_of_is_eq(g, f, sym(Bool, True{}, Nat.is_eq(g, f), h)) : {Nat.add(Spec.when(Nat.is_eq(g, i), 1n+Spec.cells_sum(cs)), Spec.row_sum(rest, i)) == Nat.add(Game.b2n(Nat.is_eq(_, i)), Nat.add(Spec.when(Nat.is_eq(g, i), Spec.cells_sum(cs)), Spec.row_sum(rest, i))) : Nat}
+      when_succ(Nat.is_eq(g, i), Spec.cells_sum(cs), Spec.row_sum(rest, i))
+    case Con{Spec.Row{+g, +cs}, +rest} False{}:
+      %sym(Nat, Spec.row_sum(Counts.add(rest, Counts.row_is(rest, f), Spec.Obs{f, to, r}), i), Nat.add(Game.b2n(Nat.is_eq(f, i)), Spec.row_sum(rest, i)), add_sum(rest, Counts.row_is(rest, f), f, to, r, i, {==})) : {Nat.add(Spec.when(Nat.is_eq(g, i), Spec.cells_sum(cs)), _) == Nat.add(Game.b2n(Nat.is_eq(f, i)), Nat.add(Spec.when(Nat.is_eq(g, i), Spec.cells_sum(cs)), Spec.row_sum(rest, i))) : Nat}
+      add_swap(Spec.when(Nat.is_eq(g, i), Spec.cells_sum(cs)), Game.b2n(Nat.is_eq(f, i)), Spec.row_sum(rest, i))
+
+def Laws.rows_sum(os, i):
+  match os:
+    case Nil{}:
+      {==}
+    case Con{Spec.Obs{f, to, r}, t}:
+      %Laws.rows_sum(t, i) : {Spec.row_sum(Counts.add(Counts.tally(t), Counts.row_is(Counts.tally(t), f), Spec.Obs{f, to, r}), i) == Nat.add(Game.b2n(Nat.is_eq(f, i)), _) : Nat}
+      add_sum(Counts.tally(t), Counts.row_is(Counts.tally(t), f), f, to, r, i, {==})
