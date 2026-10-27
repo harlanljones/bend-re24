@@ -518,3 +518,65 @@ def Laws.box_balances_away(ps):
 
 def Laws.box_balances_home(ps):
   bal_home(Game.run(ps, Game.start()), run_bal(ps, Game.start(), start_bal()))
+
+# Half-innings
+# ------------
+
+def resets_close(o: Nat, top: Bool, -inn: Nat, -so: Nat, -sb: Game.Bases, -away: Game.Line, -home: Game.Line, -rej: Nat, -bs: Game.Bases, -l: Game.Line)
+  -> {Spec.resets(Game.State{inn, top, so, sb, away, home, rej}, Game.close(o, Game.State{inn, top, so, sb, away, home, rej}, bs, l)) == True{} : Bool}:
+  match o:
+    case 0n:
+      match top:
+        case True{}:
+          {==}
+        case False{}:
+          {==}
+    case 1n+o1:
+      match o1:
+        case 0n:
+          match top:
+            case True{}:
+              {==}
+            case False{}:
+              {==}
+        case 1n+o2:
+          match o2:
+            case 0n:
+              match top:
+                case True{}:
+                  {==}
+                case False{}:
+                  {==}
+            case 1n+o3:
+              match o3:
+                case 0n:
+                  match top:
+                    case True{}:
+                      {==}
+                    case False{}:
+                      {==}
+                case 1n+o4:
+                  match top:
+                    case True{}:
+                      {==}
+                    case False{}:
+                      {==}
+
+def resets_after(m: Maybe<Game.Half>, top: Bool, -inn: Nat, -so: Nat, -sb: Game.Bases, -away: Game.Line, -home: Game.Line, -rej: Nat)
+  -> {Spec.resets(Game.State{inn, top, so, sb, away, home, rej}, Game.after(Game.State{inn, top, so, sb, away, home, rej}, m)) == True{} : Bool}:
+  match m:
+    case None{}:
+      match top:
+        case True{}:
+          {==}
+        case False{}:
+          {==}
+    case Some{h}:
+      match h:
+        case Game.Half{bs, l, o}:
+          resets_close(o, top, inn, so, sb, away, home, rej, bs, l)
+
+def Laws.half_resets(s, p):
+  match s:
+    case Game.State{inn, top, so, sb, away, home, rej}:
+      resets_after(Game.slots(p, Game.half_of(Game.State{inn, top, so, sb, away, home, rej})), top, inn, so, sb, away, home, rej)
