@@ -6,7 +6,25 @@ CHADWICK_SHA256 = c80d24dfd37707719c3e81883417a57339c4d60865e39ae73aebdbbfe21902
 CWEVENT = .tools/chadwick/bin/cwevent
 SEED ?= 2024
 
-.PHONY: fetch ingest
+BEND_SRC = main.bend $(wildcard src/*.bend)
+
+.PHONY: fetch ingest build proofs run check
+
+build: bin/re24
+
+bin/re24: $(BEND_SRC)
+	mkdir -p bin
+	$(BEND) main.bend -o bin/re24
+
+proofs:
+	BEND=$(BEND) ./check.sh
+
+check:
+	BEND=$(BEND) ./check.sh && go test ./...
+
+run: bin/re24 data/plays-$(YEAR).csv
+	mkdir -p out
+	bin/re24 run data/plays-$(YEAR).csv > out/run-$(YEAR).txt
 
 $(CWEVENT):
 	mkdir -p .tools/src
