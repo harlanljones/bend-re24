@@ -22,12 +22,26 @@ jobs:
           mkdir -p ~/.bend/bin && mv bend/bin/bend ~/.bend/bin/ && mv bend/bend2 bend/guide ~/.bend/
           echo "$HOME/.bend/bin" >> "$GITHUB_PATH"
       # `--verdict` builds the BendTT kernel on first use and needs this Lean.
+      # elan v4.2.4 (tag v4.2.4, commit e9268f8b213e09a99768befe548049c046074225).
+      # The release tarball is the installer. elan-init.sh on master is not
+      # used: that script downloads whatever /releases/latest currently is.
       - name: Install Lean v4.34.0
         run: |
-          curl -fsSL -o elan-init.sh https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh
-          sh elan-init.sh -y --no-modify-path --default-toolchain leanprover/lean4:v4.34.0
+          curl -fsSL -o elan.tar.gz https://github.com/leanprover/elan/releases/download/v4.2.4/elan-x86_64-unknown-linux-gnu.tar.gz
+          echo "42b94d4244e8353142c456ec0e4ca6528fd898a6c604d4059f494e706e431f63  elan.tar.gz" | sha256sum -c -
+          tar xzf elan.tar.gz
+          ./elan-init -y --no-modify-path --default-toolchain leanprover/lean4:v4.34.0
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       - name: Proofs, verdict, build, fixture tests
         run: ./check.sh
+      - name: gofmt
+        run: test -z "$(gofmt -l .)"
+      - name: go vet
+        run: go vet ./...
+      - name: Generated views match views.templ
+        run: |
+          go install github.com/a-h/templ/cmd/templ@v0.3.1070
+          "$(go env GOPATH)/bin/templ" generate ./report
+          git diff --exit-code -- report/views_templ.go
       - name: Go tests
         run: go test ./...
