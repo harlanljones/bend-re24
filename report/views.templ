@@ -6,7 +6,7 @@ templ page(v pageView) {
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>bend-re24: 2024 RE24 and decision book</title>
+			<title>bend-re24: { v.Year } RE24 and decision book</title>
 			<script src="/static/htmx.min.js"></script>
 			<style>
 				body { font-family: system-ui, sans-serif; max-width: 72rem; margin: 0 auto; padding: 1rem 1.5rem; line-height: 1.45; color: #1d1d1f; }
@@ -33,8 +33,8 @@ templ page(v pageView) {
 			</style>
 		</head>
 		<body>
-			<h1>bend-re24: 2024 run expectancy</h1>
-			<p>Every Retrosheet 2024 play replayed through a proven Bend 2 scorebook; every number below is an exact integer ratio.</p>
+			<h1>bend-re24: { v.Year } run expectancy</h1>
+			<p>Every Retrosheet { v.Year } play replayed through a proven Bend 2 scorebook; every number below is an exact integer ratio.</p>
 			<section aria-labelledby="summary-h">
 				<h2 id="summary-h">Summary</h2>
 				<ul>
@@ -164,13 +164,13 @@ templ page(v pageView) {
 				</ul>
 				<h3>Checked externally</h3>
 				<ul>
-					<li>The RE table matches FanGraphs 2024 within ±0.01 runs</li>
+					<li>The RE table matches the FanGraphs { v.Year } reference within ±0.01 runs, when that file is present</li>
 					<li>Literature break-evens are displayed, not tested</li>
 				</ul>
 			</section>
 			<section aria-labelledby="method-h">
 				<h2 id="method-h">Method</h2>
-				<p>Retrosheet 2024 regular-season events, decoded by Chadwick <code>cwevent</code>, innings 1–8, every event. Each play is replayed through the scorebook; a state's RE is the runs scored from that play to the end of its half-inning over its visits, counted only in complete half-innings. Break-evens and ΔRE use RE in units of 10<sup>-7</sup> runs. Intervals resample whole games with replacement (B = 1024) and take the 2.5th and 97.5th percentiles.</p>
+				<p>Retrosheet { v.Year } regular-season events, decoded by Chadwick <code>cwevent</code>, innings 1–8, every event. Each play is replayed through the scorebook; a state's RE is the runs scored from that play to the end of its half-inning over its visits, counted only in complete half-innings. Break-evens and ΔRE use RE in units of 10<sup>-7</sup> runs. Intervals resample whole games with replacement (B = 1024) and take the 2.5th and 97.5th percentiles.</p>
 			</section>
 			<footer>{ v.Notice }</footer>
 		</body>
@@ -215,7 +215,7 @@ templ chart(c chartView) {
 				}
 				<g transform={ "translate(" + c.X0 + ",0)" }>
 					<rect class="bar" x="0" y={ c.LegendY } width="12" height="10"></rect>
-					<text x="18" y={ c.LegendY } dy="9">2024 break-even</text>
+					<text x="18" y={ c.LegendY } dy="9">{ c.Season } break-even</text>
 					<line class="ci" x1="130" x2="154" y1={ c.LegendY } y2={ c.LegendY } transform="translate(0,5)"></line>
 					<text x="160" y={ c.LegendY } dy="9">95% CI</text>
 					<line class="lit" x1="220" x2="244" y1={ c.LegendY } y2={ c.LegendY } transform="translate(0,5)"></line>

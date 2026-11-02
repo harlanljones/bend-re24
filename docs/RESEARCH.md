@@ -1,6 +1,6 @@
 # bend-re24 research notes
 
-Findings for TODO section 2 (Research). Checked on host `diocletian`, 2026-10-26. "Not accessible" means the URL was tried and did not load.
+Research notes for this repository. Checked on host `diocletian`, 2026-10-26, except where a later check is named. "Not accessible" means the URL was tried and did not load.
 
 ## Bend 2
 
@@ -68,7 +68,7 @@ Source: Chadwick 0.11.0 release tarball, https://github.com/chadwickbureau/chadw
 
 ## Baselines
 
-- Ben Clemens, "The Run Expectancy Matrix, Reloaded for the 2020s", FanGraphs, 2025-05-29, https://blogs.fangraphs.com/the-run-expectancy-matrix-reloaded-for-the-2020s/. Method (quoted in substance): regular-season play-by-play; for each play, runners on base, outs, and runs scored from that moment to the end of the inning; first eight innings only (ninth and extras are biased by walk-offs and playing to the score). Gives 2-decimal tables for 2021-2025, 2021-24, 2015-19, 2000-04; the 2024 table is `fixtures/reference/fangraphs-2024-re24.csv`.
+- Ben Clemens, "The Run Expectancy Matrix, Reloaded for the 2020s", FanGraphs, 2025-05-29, https://blogs.fangraphs.com/the-run-expectancy-matrix-reloaded-for-the-2020s/. Method (quoted in substance): regular-season play-by-play; for each play, runners on base, outs, and runs scored from that moment to the end of the inning; first eight innings only (ninth and extras are biased by walk-offs and playing to the score). Gives 2-decimal tables for 2021-2025, 2021-24, 2015-19, 2000-04, and single-season tables for 2022, 2023, 2024, and an early-2025 snapshot. The 2024 table is `fixtures/reference/fangraphs-2024-re24.csv`. The 2023 table is `fixtures/reference/fangraphs-2023-re24.csv`; two cells are printed as `1` and `1.5` and stored as `1.00` and `1.50`. The early-2025 table is not a full season, so it is not a reference.
 - Ben Clemens, "When Should You Intentionally Walk Aaron Judge?", FanGraphs, 2025-05-13, https://blogs.fangraphs.com/when-should-you-intentionally-walk-aaron-judge/: 2024 league RE 0.895 at 1B/0 outs and 1.491 at 1B+2B/0 outs (the two 3-decimal checkpoints). Also models IBB run cost with a batter-specific outcome distribution, which is why this repo reports only league ΔRE for IBB.
 - Tango's pooled 2010-2024 RE chart: https://tangotiger.net/files/re24_full.png (image; HTTP 200, last-modified 2025-04-08). Not used as a numeric baseline (pooled years, image only). *The Book* tables: Clemens links https://tangotiger.net/re24.html; the steal/bunt/IBB chapters were not found publicly, so they are not compared.
 - FanGraphs Guts, https://www.fangraphs.com/tools/guts: tabs are wOBA & FIP constants, park factors and handedness park factors (2024 row: runSB .200, runCS −.405). No per-season RE table.

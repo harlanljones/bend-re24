@@ -37,7 +37,7 @@ All 7 are in `LAWS.bend`; proofs are in `PROOF.bend`. They are the four claims b
 | RE values, break-evens, ΔRE | Exact integer arithmetic on `Nat` (floor division); not proved optimal or "correct" beyond the definitions | `src/re24.bend`, `src/decisions.bend` |
 | Bootstrap CIs deterministic across thread counts | Checked by test | `tests/run.sh` |
 | Fixture RE equals an independent awk oracle | Checked by test | `tests/run.sh` |
-| RE24 matches FanGraphs 2024 within ±0.01 runs | Checked externally | `go run ./compare` |
+| RE24 matches the FanGraphs reference for the selected year within ±0.01 runs | Checked externally | `go run ./compare` (`make compare`, `YEAR`) |
 | Literature steal break-evens | Displayed beside ours, not tested | report |
 
 ## Integer representation
@@ -60,6 +60,12 @@ Outcomes come from `RE.observe` applied to a synthetic state (inning 1, top, giv
 - `ibb`: all 24 states, `DRE ibb` = value(walk) − B. The walk play forces runners only as needed (bases loaded: runner from third scores).
 - IBB run-cost rationale: an IBB has no "success rate". Its break-even depends on the distribution of the specific batter's outcomes, which a league RE table does not contain. The book number is therefore its league-average run cost; a batter-specific model (as in Clemens' Judge article) is out of scope.
 - Infield-in delta: dropped from v0. Retrosheet does not record infield alignment, so the delta cannot be computed from this data.
+
+## Seasons
+
+The Makefile variable `YEAR` (default 2024) selects the Retrosheet season for fetch, ingest, run, compare, and the report. Compare reads `fixtures/reference/fangraphs-$(YEAR)-re24.csv`. The report takes `-year` (default 2024; `make report` passes `$(YEAR)`).
+
+2023 is the second checked season. Its reference is Clemens' single-season table from the same 2025-05-29 article. Cells printed there as `1` and `1.5` are stored as `1.00` and `1.50`. The replay (`GAMES 2430 2430 0`, `PLAYS 171388`, 97 forced-advance repairs, no partial half) matches that table: 24/24 states within 0.01 runs, worst 0.0082 at 1B+3B with none out.
 
 ## Objective
 

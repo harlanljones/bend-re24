@@ -47,7 +47,7 @@ func testServer(t *testing.T) *httptest.Server {
 		t.Fatal(err)
 	}
 	lit := []litRow{{"steal2", bendout.State{Bases: 1, Outs: 0}, "70", "75", "2009-2011", "https://blogs.fangraphs.com/breaking-down-stolen-base-break-even-points/"}}
-	srv := httptest.NewServer(newHandler(data{run, boot, lit}))
+	srv := httptest.NewServer(newHandler(data{year: 2023, run: run, boot: boot, lit: lit}))
 	t.Cleanup(srv.Close)
 	return srv
 }
@@ -90,8 +90,12 @@ func TestRoutes(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("/: status %d", code)
 	}
-	if !strings.Contains(html.UnescapeString(body), notice) {
+	plain := html.UnescapeString(body)
+	if !strings.Contains(plain, notice) {
 		t.Errorf("/: missing the Retrosheet notice")
+	}
+	if !strings.Contains(plain, "2023 run expectancy") {
+		t.Errorf("/: year was not taken from the report data")
 	}
 }
 

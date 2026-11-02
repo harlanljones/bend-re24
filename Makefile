@@ -39,11 +39,11 @@ run: bin/re24 data/plays-$(YEAR).csv
 	mkdir -p out
 	bin/re24 run data/plays-$(YEAR).csv > out/run-$(YEAR).txt
 	bin/re24 boot data/plays-$(YEAR).csv $(SEED) > out/boot-$(YEAR).txt
-	go run ./report -export out -run out/run-$(YEAR).txt -boot out/boot-$(YEAR).txt
+	go run ./report -export out -year $(YEAR) -run out/run-$(YEAR).txt -boot out/boot-$(YEAR).txt
 
 report: out/run-$(YEAR).txt
 	$(TEMPL) generate ./report
-	go run ./report -run out/run-$(YEAR).txt -boot out/boot-$(YEAR).txt -refs fixtures/reference -addr 127.0.0.1:8024
+	go run ./report -year $(YEAR) -run out/run-$(YEAR).txt -boot out/boot-$(YEAR).txt -refs fixtures/reference -addr 127.0.0.1:8024
 
 # One line per mode: `<mode> <seconds>`, or `gpu FAILED`.
 time: bin/re24 data/plays-$(YEAR).csv

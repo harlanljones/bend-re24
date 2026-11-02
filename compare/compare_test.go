@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/harlanljones/bend-re24/internal/bendout"
 )
 
 func writeTemp(t *testing.T, dir, name, body string) string {
@@ -77,6 +79,30 @@ func TestDecimal(t *testing.T) {
 	}
 	if _, _, err := decimal("x"); err == nil {
 		t.Fatal("accepted a non-number")
+	}
+}
+
+func TestFanGraphs2023Shape(t *testing.T) {
+	refs, err := readRefs(filepath.Join("..", "fixtures", "reference", "fangraphs-2023-re24.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 24 {
+		t.Fatalf("2023 reference has %d rows, want 24", len(refs))
+	}
+	// Clemens prints two cells as "1" and "1.5". They are stored at the same
+	// two-decimal width as the rest of his table, and as 2024's "0.1".
+	var one, oneFive bool
+	for _, r := range refs {
+		if r.state == (bendout.State{Bases: 4, Outs: 1}) && r.text == "1.00" {
+			one = true
+		}
+		if r.state == (bendout.State{Bases: 3, Outs: 0}) && r.text == "1.50" {
+			oneFive = true
+		}
+	}
+	if !one || !oneFive {
+		t.Fatalf("normalized cells: 1.00=%v 1.50=%v", one, oneFive)
 	}
 }
 

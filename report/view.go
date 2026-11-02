@@ -115,6 +115,7 @@ type kindTable[R any] struct {
 }
 
 type pageView struct {
+	Year    int
 	Summary summaryView
 	Grid    []gridRow
 	BE      []kindTable[beRow]
@@ -142,6 +143,7 @@ func (d data) litFor(kind string, s bendout.State) []litView {
 func (d data) pageView() pageView {
 	r := d.run
 	v := pageView{
+		Year: d.year,
 		Summary: summaryView{
 			Seen:    strconv.Itoa(r.Games.Seen),
 			Good:    strconv.Itoa(r.Games.Good),
@@ -290,6 +292,7 @@ type chartBar struct {
 }
 
 type chartView struct {
+	Season                                                  string
 	ViewBox, Width, Height, X0, X1, GridY1, GridY2, LegendY string
 	Ticks                                                   []tick
 	Bars                                                    []chartBar
@@ -326,6 +329,7 @@ func (d data) chart() chartView {
 	height := bottom + 40
 	width := chartLabelW + chartPlotW + chartTailW
 	c := chartView{
+		Season:  strconv.Itoa(d.year),
 		ViewBox: fmt.Sprintf("0 0 %d %d", width, height),
 		Width:   intStr(width),
 		Height:  intStr(height),

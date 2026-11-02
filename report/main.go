@@ -14,10 +14,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/harlanljones/bend-re24/internal/bendout"
@@ -38,8 +38,9 @@ type litRow struct {
 }
 
 // data is everything the report shows. boot is never nil; it has no CI
-// lines when no bootstrap output was loaded.
+// lines when no bootstrap output was loaded. year is the season being shown.
 type data struct {
+	year      int
 	run, boot *bendout.Output
 	lit       []litRow
 }
@@ -82,7 +83,7 @@ func run(runPath, bootPath, refs, addr, export string, year int) error {
 		return err
 	}
 	log.Printf("report: serving http://%s", addr)
-	return listen(addr, newHandler(data{out, boot, lit}))
+	return listen(addr, newHandler(data{year: year, run: out, boot: boot, lit: lit}))
 }
 
 // newServer bounds how long a request may sit in read or write. The page is

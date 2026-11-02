@@ -42,7 +42,7 @@ Published RE24 tables (FanGraphs, Tango) are numbers produced by code nobody els
 | Chadwick's state, runs, outs, end bases and fate runs on every play | At runtime, in Bend (`BADGAME` on any mismatch) |
 | Transition table total vs RE visits for each state | At runtime, in Bend (`ERROR table`) |
 | Fixture RE vs an independent awk oracle; bootstrap identical on 1 and 24 threads | `tests/run.sh` |
-| RE24 vs FanGraphs 2024, ±0.01 runs | `make compare` |
+| RE24 vs FanGraphs for `YEAR`, ±0.01 runs | `make compare` |
 | Literature break-evens | Displayed beside ours, not tested |
 
 ## Results (2024, innings 1–8)
@@ -133,7 +133,9 @@ make ingest && make check && make run && make compare && make report
 - `make ingest`: builds Chadwick, fetches the 61 pinned season files and writes `data/plays-2024.csv`. Prints `ingest: 2429 games, 169940 plays (innings 1-8), 80 forced-advance repairs`.
 - `make check`: proofs (plain and `--verdict`), the native build, `tests/run.sh` and `go test ./...`.
 - `make run`: writes `out/run-2024.txt`, `out/boot-2024.txt` (seed `SEED=2024`) and the CSVs `out/transitions-2024.csv`, `out/re24-2024.csv` and `out/decisions-2024.csv`.
-- `make compare`: compares with FanGraphs. `make report`: serves http://127.0.0.1:8024. `make time`: writes `out/timing-2024.txt`.
+- `make compare`: compares with `fixtures/reference/fangraphs-$(YEAR)-re24.csv`. `make report`: serves http://127.0.0.1:8024 and passes `-year $(YEAR)`. `make time`: writes `out/timing-$(YEAR).txt`.
+
+`YEAR` defaults to 2024. `YEAR=2023 make fetch ingest run compare` replays that season against Clemens' 2023 table (same 2025-05-29 article). Two cells he prints as `1` and `1.5` are stored as `1.00` and `1.50`, the same way 2024's `0.1` is stored as `0.10`. The 2023 replay is `GAMES 2430 2430 0`, `HALVES 38870 0`, `PLAYS 171388`, with 97 forced-advance repairs. `make compare YEAR=2023` reports `24/24 within 0.01 runs; worst 0.0082 at 5/0` (1B+3B, none out).
 
 ## Limits
 
