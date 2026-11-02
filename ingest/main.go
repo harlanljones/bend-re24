@@ -17,6 +17,7 @@ import (
 // columns lists the cwevent fields ingest reads, by header name.
 var columns = []string{
 	"GAME_ID", "AWAY_TEAM_ID", "INN_CT", "OUTS_CT", "EVENT_CD", "BAT_EVENT_FL",
+	"SH_FL", "BUNT_FL",
 	"EVENT_OUTS_CT", "BAT_DEST_ID", "RUN1_DEST_ID", "RUN2_DEST_ID", "RUN3_DEST_ID",
 	"BAT_LAST_ID", "START_BASES_CD", "END_BASES_CD", "EVENT_RUNS_CT", "FATE_RUNS_CT",
 }
@@ -29,6 +30,7 @@ type event struct {
 	outs      int
 	eventCD   int
 	batEvent  bool
+	sh, bunt  bool
 	eventOuts int
 	batDest   int
 	runDest   [4]int // runDest[k] for the runner who began on base k (1..3)
@@ -66,14 +68,28 @@ func parse(f map[string]string, line int) (event, error) {
 			return event{}, err
 		}
 	}
-	switch f["BAT_EVENT_FL"] {
-	case "T":
-		e.batEvent = true
-	case "F":
-	default:
-		return event{}, fmt.Errorf("ingest: %s row %d: bad BAT_EVENT_FL %q", e.gameID, line, f["BAT_EVENT_FL"])
+	var err error
+	if e.batEvent, err = tf("BAT_EVENT_FL", f["BAT_EVENT_FL"], e.gameID, line); err != nil {
+		return event{}, err
+	}
+	if e.sh, err = tf("SH_FL", f["SH_FL"], e.gameID, line); err != nil {
+		return event{}, err
+	}
+	if e.bunt, err = tf("BUNT_FL", f["BUNT_FL"], e.gameID, line); err != nil {
+		return event{}, err
 	}
 	return e, nil
+}
+
+func tf(name, v, game string, line int) (bool, error) {
+	switch v {
+	case "T":
+		return true, nil
+	case "F":
+		return false, nil
+	default:
+		return false, fmt.Errorf("ingest: %s row %d: bad %s %q", game, line, name, v)
+	}
 }
 
 // slot is the index in the play string of the runner who began on base k.
@@ -151,10 +167,60 @@ func repair(e event, p []byte) ([]byte, bool) {
 	return q, changed
 }
 
-type stats struct{ games, plays, repairs int }
+type stats struct{ games, plays, repairs, marks, mgrGames int }
+
+// managers is one game log's pair of managers, keyed by Retrosheet game id.
+type managers struct {
+	awayID, awayName, homeID, homeName string
+}
+
+// loadLog reads a Retrosheet game log. Manager ids are fields 90 and 92
+// (1-based), and the game id is home team + date + game number.
+func loadLog(r io.Reader) (map[string]managers, error) {
+	cr := csv.NewReader(r)
+	cr.FieldsPerRecord = -1
+	out := map[string]managers{}
+	line := 0
+	for {
+		rec, err := cr.Read()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		line++
+		if err != nil {
+			return nil, fmt.Errorf("ingest: game log row %d: %w", line, err)
+		}
+		if len(rec) < 93 {
+			return nil, fmt.Errorf("ingest: game log row %d: %d fields, want at least 93", line, len(rec))
+		}
+		id := rec[6] + rec[0] + rec[1]
+		out[id] = managers{rec[89], rec[90], rec[91], rec[92]}
+	}
+	return out, nil
+}
+
+func homeOf(gameID string) string {
+	if len(gameID) < 3 {
+		return ""
+	}
+	return gameID[:3]
+}
+
+func bit01(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
+}
+
+func isMark(e event) bool {
+	return e.eventCD == 4 || e.eventCD == 6 || e.eventCD == 15 || e.sh || e.bunt
+}
 
 // run reads cwevent CSV from in and writes the plays and games CSVs.
-func run(in io.Reader, plays, games io.Writer) (stats, error) {
+// marks and log may be nil. marks receives steal, bunt, and intentional-walk
+// rows; log fills manager ids on the games CSV.
+func run(in io.Reader, plays, games, marks io.Writer, log io.Reader) (stats, error) {
 	var st stats
 	r := csv.NewReader(in)
 	header, err := r.Read()
@@ -170,10 +236,29 @@ func run(in io.Reader, plays, games io.Writer) (stats, error) {
 			return st, fmt.Errorf("ingest: missing column %s", c)
 		}
 	}
+	var byID map[string]managers
+	if log != nil {
+		var err error
+		byID, err = loadLog(log)
+		if err != nil {
+			return st, err
+		}
+	}
 	pw := bufio.NewWriter(plays)
-	gw := bufio.NewWriter(games)
+	gw := csv.NewWriter(games)
+	var mw *csv.Writer
+	if marks != nil {
+		mw = csv.NewWriter(marks)
+	}
 	fmt.Fprintln(pw, "game,inn,half,outs,bases,play,end_bases,event_outs,event_runs,fate_runs,event_cd")
-	fmt.Fprintln(gw, "game,game_id,away_team")
+	if err := gw.Write([]string{"game", "game_id", "away_team", "home_team", "away_mgr_id", "away_mgr_name", "home_mgr_id", "home_mgr_name"}); err != nil {
+		return st, err
+	}
+	if mw != nil {
+		if err := mw.Write([]string{"game", "half", "outs", "bases", "play", "event_cd", "sh", "bunt"}); err != nil {
+			return st, err
+		}
+	}
 	index := map[string]int{}
 	cur := ""
 	line := 1
@@ -199,7 +284,18 @@ func run(in io.Reader, plays, games io.Writer) (stats, error) {
 				return st, fmt.Errorf("ingest: %s row %d: game rows are not contiguous", e.gameID, line)
 			}
 			index[e.gameID] = st.games
-			fmt.Fprintf(gw, "%d,%s,%s\n", st.games, e.gameID, e.awayTeam)
+			m := byID[e.gameID]
+			if byID != nil {
+				if _, ok := byID[e.gameID]; ok {
+					st.mgrGames++
+				}
+			}
+			if err := gw.Write([]string{
+				strconv.Itoa(st.games), e.gameID, e.awayTeam, homeOf(e.gameID),
+				m.awayID, m.awayName, m.homeID, m.homeName,
+			}); err != nil {
+				return st, err
+			}
 			st.games++
 			cur = e.gameID
 		}
@@ -216,30 +312,51 @@ func run(in io.Reader, plays, games io.Writer) (stats, error) {
 		}
 		fmt.Fprintf(pw, "%d,%d,%d,%d,%d,%s,%d,%d,%d,%d,%d\n", index[e.gameID], e.inn, e.half,
 			e.outs, e.bases, p, e.endBases, e.eventOuts, e.eventRuns, e.fateRuns, e.eventCD)
+		if mw != nil && isMark(e) {
+			if err := mw.Write([]string{
+				strconv.Itoa(index[e.gameID]), strconv.Itoa(e.half), strconv.Itoa(e.outs), strconv.Itoa(e.bases),
+				string(p), strconv.Itoa(e.eventCD), bit01(e.sh), bit01(e.bunt),
+			}); err != nil {
+				return st, err
+			}
+			st.marks++
+		}
 		st.plays++
 	}
 	if err := pw.Flush(); err != nil {
 		return st, err
 	}
-	return st, gw.Flush()
+	gw.Flush()
+	if err := gw.Error(); err != nil {
+		return st, err
+	}
+	if mw != nil {
+		mw.Flush()
+		if err := mw.Error(); err != nil {
+			return st, err
+		}
+	}
+	return st, nil
 }
 
 func main() {
 	in := flag.String("in", "", "cwevent CSV")
 	playsPath := flag.String("plays", "", "plays CSV to write")
 	gamesPath := flag.String("games", "", "games CSV to write")
+	marksPath := flag.String("marks", "", "decision-mark CSV to write (optional)")
+	logPath := flag.String("log", "", "Retrosheet game log for manager ids (optional)")
 	flag.Parse()
 	if *in == "" || *playsPath == "" || *gamesPath == "" {
-		fmt.Fprintln(os.Stderr, "usage: ingest -in <cwevent.csv> -plays <plays.csv> -games <games.csv>")
+		fmt.Fprintln(os.Stderr, "usage: ingest -in <cwevent.csv> -plays <plays.csv> -games <games.csv> [-marks <marks.csv>] [-log <glYEAR.txt>]")
 		os.Exit(2)
 	}
-	if err := ingest(*in, *playsPath, *gamesPath); err != nil {
+	if err := ingest(*in, *playsPath, *gamesPath, *marksPath, *logPath); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func ingest(inPath, playsPath, gamesPath string) error {
+func ingest(inPath, playsPath, gamesPath, marksPath, logPath string) error {
 	in, err := os.Open(inPath)
 	if err != nil {
 		return fmt.Errorf("ingest: %w", err)
@@ -255,7 +372,24 @@ func ingest(inPath, playsPath, gamesPath string) error {
 		return fmt.Errorf("ingest: %w", err)
 	}
 	defer games.Close()
-	st, err := run(in, plays, games)
+	var marks *os.File
+	if marksPath != "" {
+		marks, err = os.Create(marksPath)
+		if err != nil {
+			return fmt.Errorf("ingest: %w", err)
+		}
+		defer marks.Close()
+	}
+	var log io.Reader
+	if logPath != "" {
+		f, err := os.Open(logPath)
+		if err != nil {
+			return fmt.Errorf("ingest: %w", err)
+		}
+		defer f.Close()
+		log = f
+	}
+	st, err := run(in, plays, games, marks, log)
 	if err != nil {
 		return err
 	}
@@ -265,7 +399,16 @@ func ingest(inPath, playsPath, gamesPath string) error {
 	if err := games.Close(); err != nil {
 		return fmt.Errorf("ingest: %w", err)
 	}
-	fmt.Fprintf(os.Stderr, "ingest: %d games, %d plays (innings 1-8), %d forced-advance repairs\n",
-		st.games, st.plays, st.repairs)
+	if marks != nil {
+		if err := marks.Close(); err != nil {
+			return fmt.Errorf("ingest: %w", err)
+		}
+	}
+	fmt.Fprintf(os.Stderr, "ingest: %d games, %d plays (innings 1-8), %d forced-advance repairs, %d decision marks",
+		st.games, st.plays, st.repairs, st.marks)
+	if logPath != "" {
+		fmt.Fprintf(os.Stderr, ", managers for %d/%d games", st.mgrGames, st.games)
+	}
+	fmt.Fprintln(os.Stderr)
 	return nil
 }

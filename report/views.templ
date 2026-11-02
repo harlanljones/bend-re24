@@ -142,6 +142,36 @@ templ page(v pageView) {
 				}
 				<p>An intentional walk has no break-even rate without a batter-specific outcome model, so its book number is its run cost: RE after the walk minus RE before it.</p>
 			</section>
+			<section aria-labelledby="mgr-h">
+				<h2 id="mgr-h">Managers vs the book</h2>
+				if v.MgrLoaded {
+					<p>Steals and bunts are charged to the batting manager. Intentional walks are charged to the fielding manager. A graded steal or bunt is the book's success play or its failure play in that base-out state. The margin is 100 percentage points on a success and 0 on a failure, minus that state's break-even; the average divides the sum by the number graded. A positive average beat the book. Other attempts are counted and left ungraded. An intentional walk has no break-even, so its column sums the book's league ΔRE. Innings 1–8 only.</p>
+					<table>
+						<caption>By manager and decision</caption>
+						<thead>
+							<tr><th scope="col">Manager</th><th scope="col">Decision</th><th scope="col">Attempts</th><th scope="col">Graded</th><th scope="col">Success rate</th><th scope="col">Average margin</th><th scope="col">IBB run cost</th></tr>
+						</thead>
+						<tbody>
+							for _, r := range v.Mgrs {
+								<tr>
+									<td class="name">{ r.Name }</td>
+									<td class="name">{ r.Decision }</td>
+									<td>{ r.Attempts }</td>
+									<td>{ r.Graded }</td>
+									<td>{ r.Rate }</td>
+									<td>{ r.Margin }</td>
+									<td>{ r.Cost }</td>
+								</tr>
+							}
+							if len(v.Mgrs) == 0 {
+								<tr><td class="name" colspan="7">no attempts in the loaded marks</td></tr>
+							}
+						</tbody>
+					</table>
+				} else {
+					<p>Decision marks were not loaded. Pass -marks and -games to grade each steal, bunt, and intentional walk against this run's break-evens.</p>
+				}
+			</section>
 			<section aria-labelledby="laws-h">
 				<h2 id="laws-h">Laws proved vs checked</h2>
 				<h3>Proved in Bend 2 (LAWS.bend, PROOF.bend)</h3>

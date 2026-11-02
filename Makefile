@@ -7,7 +7,7 @@ CWEVENT = .tools/chadwick/bin/cwevent
 SEED ?= 2024
 
 BEND_SRC = main.bend $(wildcard src/*.bend)
-CWFIELDS = -f 0,1,2,4,34,35,40,58-61 -x 3,13,14,45,55
+CWFIELDS = -f 0,1,2,4,34,35,38,40,48,58-61 -x 3,13,14,45,55
 NOTICE = The information used here was obtained free of charge from and is copyrighted by Retrosheet.  Interested parties may contact Retrosheet at "www.retrosheet.org".
 
 # Wall seconds of one command, from bash's `time`.
@@ -39,11 +39,11 @@ run: bin/re24 data/plays-$(YEAR).csv
 	mkdir -p out
 	bin/re24 run data/plays-$(YEAR).csv > out/run-$(YEAR).txt
 	bin/re24 boot data/plays-$(YEAR).csv $(SEED) > out/boot-$(YEAR).txt
-	go run ./report -export out -year $(YEAR) -run out/run-$(YEAR).txt -boot out/boot-$(YEAR).txt
+	go run ./report -export out -year $(YEAR) -run out/run-$(YEAR).txt -boot out/boot-$(YEAR).txt -games data/games-$(YEAR).csv -marks data/marks-$(YEAR).csv
 
 report: out/run-$(YEAR).txt
 	$(TEMPL) generate ./report
-	go run ./report -year $(YEAR) -run out/run-$(YEAR).txt -boot out/boot-$(YEAR).txt -refs fixtures/reference -addr 127.0.0.1:8024
+	go run ./report -year $(YEAR) -run out/run-$(YEAR).txt -boot out/boot-$(YEAR).txt -refs fixtures/reference -games data/games-$(YEAR).csv -marks data/marks-$(YEAR).csv -addr 127.0.0.1:8024
 
 # One line per mode: `<mode> <seconds>`, or `gpu FAILED`.
 time: bin/re24 data/plays-$(YEAR).csv
@@ -64,7 +64,7 @@ out/run-$(YEAR).txt: bin/re24 data/plays-$(YEAR).csv
 fixtures: $(CWEVENT) data/raw/2024/TEAM2024
 	cd data/raw/2024 && $(abspath $(CWEVENT)) -Q -n -y 2024 $(CWFIELDS) -i ANA202404050 2024ANA.EVA > $(abspath fixtures/cwevent-mini.csv)
 	cd data/raw/2024 && $(abspath $(CWEVENT)) -Q -y 2024 $(CWFIELDS) -i ANA202408160 2024ANA.EVA >> $(abspath fixtures/cwevent-mini.csv)
-	go run ./ingest -in fixtures/cwevent-mini.csv -plays fixtures/plays-mini.csv -games fixtures/games-mini.csv
+	go run ./ingest -in fixtures/cwevent-mini.csv -plays fixtures/plays-mini.csv -games fixtures/games-mini.csv -marks fixtures/marks-mini.csv -log data/raw/2024/gl2024.txt
 	awk -F, 'BEGIN{OFS=","} NR>1 && $$1==1 && $$9==1 && !d {$$9=2; d=1} {print}' fixtures/plays-mini.csv > fixtures/plays-bad.csv
 	printf '%s\n' '$(NOTICE)' > fixtures/NOTICE
 
@@ -86,5 +86,5 @@ ingest: data/plays-$(YEAR).csv
 data/cwevent-$(YEAR).csv: $(CWEVENT) data/raw/$(YEAR)/TEAM$(YEAR)
 	cd data/raw/$(YEAR) && $(abspath $(CWEVENT)) -Q -n -y $(YEAR) $(CWFIELDS) $(YEAR)*.EV? > ../../cwevent-$(YEAR).csv
 
-data/plays-$(YEAR).csv: data/cwevent-$(YEAR).csv ingest/main.go
-	go run ./ingest -in data/cwevent-$(YEAR).csv -plays data/plays-$(YEAR).csv -games data/games-$(YEAR).csv
+data/plays-$(YEAR).csv: data/cwevent-$(YEAR).csv data/raw/$(YEAR)/gl$(YEAR).txt ingest/main.go
+	go run ./ingest -in data/cwevent-$(YEAR).csv -plays data/plays-$(YEAR).csv -games data/games-$(YEAR).csv -marks data/marks-$(YEAR).csv -log data/raw/$(YEAR)/gl$(YEAR).txt

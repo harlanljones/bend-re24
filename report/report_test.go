@@ -5,11 +5,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/harlanljones/bend-re24/internal/bendout"
+	"github.com/harlanljones/bend-re24/internal/vsbook"
 )
 
 const sampleRun = `GAMES 2 2 0
@@ -96,6 +98,79 @@ func TestRoutes(t *testing.T) {
 	}
 	if !strings.Contains(plain, "2023 run expectancy") {
 		t.Errorf("/: year was not taken from the report data")
+	}
+	if !strings.Contains(plain, "Decision marks were not loaded") {
+		t.Errorf("/: missing the unloaded-marks note")
+	}
+}
+
+func TestManagers(t *testing.T) {
+	run, err := bendout.Parse(strings.NewReader(sampleRun))
+	if err != nil {
+		t.Fatal(err)
+	}
+	margin := int64(-4000)
+	rows := []vsbook.Row{{
+		ID: "coraa001", Name: "Alex Cora", Kind: "steal2",
+		Attempts: 2, Graded: 2, Successes: 1, MarginBP: &margin,
+	}}
+	srv := httptest.NewServer(newHandler(data{year: 2024, run: run, boot: &bendout.Output{}, mgrLoaded: true, mgrs: rows}))
+	t.Cleanup(srv.Close)
+	code, body := get(t, srv, "/")
+	if code != http.StatusOK {
+		t.Fatalf("/: status %d", code)
+	}
+	plain := html.UnescapeString(body)
+	for _, want := range []string{"Alex Cora", "Steal of second", "-20.00 pp", "50.00%"} {
+		if !strings.Contains(plain, want) {
+			t.Errorf("/: missing %q", want)
+		}
+	}
+	if strings.Contains(plain, "Decision marks were not loaded") {
+		t.Errorf("/: loaded marks still show the empty note")
+	}
+}
+
+func TestManagersNeedBothFiles(t *testing.T) {
+	if _, _, err := loadManagers("marks.csv", "", nil); err == nil {
+		t.Fatal("marks without games was accepted")
+	}
+	if _, _, err := loadManagers("", "games.csv", nil); err == nil {
+		t.Fatal("games without marks was accepted")
+	}
+}
+
+func TestExportManagers(t *testing.T) {
+	run, err := bendout.Parse(strings.NewReader(sampleRun))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := exportCSV(dir, 2024, run, &bendout.Output{}, nil, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dir + "/managers-2024.csv"); !os.IsNotExist(err) {
+		t.Fatalf("managers csv exists without marks: %v", err)
+	}
+	margin := int64(-4000)
+	cost := int64(4005000)
+	rows := []vsbook.Row{
+		{ID: "coraa001", Name: "Alex Cora", Kind: "steal2", Attempts: 2, Graded: 2, Successes: 1, MarginBP: &margin},
+		{ID: "washr001", Name: "Ron Washington", Kind: "ibb", Attempts: 1, Graded: 1, RunCost7: &cost},
+	}
+	if err := exportCSV(dir, 2024, run, &bendout.Output{}, rows, true); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(dir + "/managers-2024.csv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(b)
+	want := "manager_id,manager,kind,attempts,graded,successes,success_rate,avg_margin_pp,ibb_dre\n" +
+		"coraa001,Alex Cora,steal2,2,2,1,50.00,-20.00,\n" +
+		"washr001,Ron Washington,ibb,1,1,0,,,0.4005\n"
+	if got != want {
+		t.Fatalf("managers csv:\n%s\nwant:\n%s", got, want)
 	}
 }
 

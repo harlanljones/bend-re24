@@ -21,6 +21,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/harlanljones/bend-re24/internal/bendout"
+	"github.com/harlanljones/bend-re24/internal/vsbook"
 )
 
 //go:embed static
@@ -39,10 +40,13 @@ type litRow struct {
 
 // data is everything the report shows. boot is never nil; it has no CI
 // lines when no bootstrap output was loaded. year is the season being shown.
+// mgrs is set only when both the marks file and the games file were loaded.
 type data struct {
 	year      int
 	run, boot *bendout.Output
 	lit       []litRow
+	mgrLoaded bool
+	mgrs      []vsbook.Row
 }
 
 func main() {
@@ -52,18 +56,20 @@ func main() {
 	addr := flag.String("addr", "127.0.0.1:8024", "listen address")
 	export := flag.String("export", "", "write the CSV files to this directory and exit")
 	year := flag.Int("year", 2024, "season in the exported file names")
+	marks := flag.String("marks", "", "decision-mark CSV from ingest; set with -games")
+	games := flag.String("games", "", "games CSV from ingest; set with -marks")
 	flag.Parse()
 	if flag.NArg() != 0 {
-		fmt.Fprintln(os.Stderr, "usage: report -run <run.txt> [-boot <boot.txt>] [-refs <dir>] [-addr <host:port>] [-export <dir>]")
+		fmt.Fprintln(os.Stderr, "usage: report -run <run.txt> [-boot <boot.txt>] [-refs <dir>] [-marks <marks.csv> -games <games.csv>] [-addr <host:port>] [-export <dir>] [-year <year>]")
 		os.Exit(2)
 	}
-	if err := run(*runPath, *bootPath, *refs, *addr, *export, *year); err != nil {
+	if err := run(*runPath, *bootPath, *refs, *addr, *export, *year, *marks, *games); err != nil {
 		fmt.Fprintln(os.Stderr, "report:", err)
 		os.Exit(1)
 	}
 }
 
-func run(runPath, bootPath, refs, addr, export string, year int) error {
+func run(runPath, bootPath, refs, addr, export string, year int, marks, games string) error {
 	out, err := parseFile(runPath)
 	if err != nil {
 		return err
@@ -75,15 +81,54 @@ func run(runPath, bootPath, refs, addr, export string, year int) error {
 	} else if err != nil {
 		return err
 	}
+	loaded, mgrs, err := loadManagers(marks, games, out)
+	if err != nil {
+		return err
+	}
 	if export != "" {
-		return exportCSV(export, year, out, boot)
+		return exportCSV(export, year, out, boot, mgrs, loaded)
 	}
 	lit, err := readLiterature(filepath.Join(refs, "breakeven-literature.csv"))
 	if err != nil {
 		return err
 	}
 	log.Printf("report: serving http://%s", addr)
-	return listen(addr, newHandler(data{year: year, run: out, boot: boot, lit: lit}))
+	return listen(addr, newHandler(data{year: year, run: out, boot: boot, lit: lit, mgrLoaded: loaded, mgrs: mgrs}))
+}
+
+// loadManagers grades ingest's marks against the run's break-evens. Neither
+// path means the report has no manager section. One path without the other
+// is an error, so a missing file is not shown as an empty leaderboard.
+func loadManagers(marksPath, gamesPath string, book *bendout.Output) (bool, []vsbook.Row, error) {
+	if marksPath == "" && gamesPath == "" {
+		return false, nil, nil
+	}
+	if marksPath == "" || gamesPath == "" {
+		return false, nil, errors.New("-marks and -games are set together")
+	}
+	mf, err := os.Open(marksPath)
+	if err != nil {
+		return false, nil, err
+	}
+	defer mf.Close()
+	attempts, err := vsbook.LoadAttempts(mf)
+	if err != nil {
+		return false, nil, err
+	}
+	gf, err := os.Open(gamesPath)
+	if err != nil {
+		return false, nil, err
+	}
+	defer gf.Close()
+	gs, err := vsbook.LoadGames(gf)
+	if err != nil {
+		return false, nil, err
+	}
+	rows, err := vsbook.Grade(attempts, gs, book)
+	if err != nil {
+		return false, nil, err
+	}
+	return true, rows, nil
 }
 
 // newServer bounds how long a request may sit in read or write. The page is

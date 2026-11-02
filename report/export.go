@@ -8,12 +8,13 @@ import (
 	"strconv"
 
 	"github.com/harlanljones/bend-re24/internal/bendout"
+	"github.com/harlanljones/bend-re24/internal/vsbook"
 )
 
 // exportCSV writes transitions, RE24 and decisions CSVs into dir. A value
 // bin/re24 printed as NA is written NA; a field that does not apply, or a CI
 // with no bootstrap line, is left empty.
-func exportCSV(dir string, year int, run, boot *bendout.Output) error {
+func exportCSV(dir string, year int, run, boot *bendout.Output, mgrs []vsbook.Row, mgrLoaded bool) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -70,7 +71,18 @@ func exportCSV(dir string, year int, run, boot *bendout.Output) error {
 			return err
 		}
 	}
-	return nil
+	if !mgrLoaded {
+		return nil
+	}
+	mgr := [][]string{{"manager_id", "manager", "kind", "attempts", "graded", "successes", "success_rate", "avg_margin_pp", "ibb_dre"}}
+	for _, row := range mgrs {
+		mgr = append(mgr, []string{
+			row.ID, row.Name, row.Kind,
+			itoa(row.Attempts), itoa(row.Graded), itoa(row.Successes),
+			mgrRate(row), mgrMargin(row), mgrCost(row),
+		})
+	}
+	return writeCSV(name("managers"), mgr)
 }
 
 func ciFields(boot *bendout.Output, stat, kind string, s bendout.State, f func(int64) string) (lo, hi string) {

@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/harlanljones/bend-re24/internal/bendout"
+	"github.com/harlanljones/bend-re24/internal/vsbook"
 )
 
 // Exact decimal rendering. RE lines carry runs and visits; CI RE and DRE
@@ -72,6 +73,7 @@ var kindTitles = map[string]string{
 	"steal3": "Steal of third",
 	"bunt":   "Sacrifice bunt",
 	"ibb":    "Intentional walk",
+	"steal":  "Other steal",
 }
 
 var beKinds = []string{"steal2", "steal3", "bunt"}
@@ -114,15 +116,21 @@ type kindTable[R any] struct {
 	Rows        []R
 }
 
+type mgrRow struct {
+	Name, Decision, Attempts, Graded, Rate, Margin, Cost string
+}
+
 type pageView struct {
-	Year    int
-	Summary summaryView
-	Grid    []gridRow
-	BE      []kindTable[beRow]
-	DRE     []kindTable[dreRow]
-	Chart   chartView
-	HasBoot bool
-	Notice  string
+	Year      int
+	Summary   summaryView
+	Grid      []gridRow
+	BE        []kindTable[beRow]
+	DRE       []kindTable[dreRow]
+	Chart     chartView
+	HasBoot   bool
+	MgrLoaded bool
+	Mgrs      []mgrRow
+	Notice    string
 }
 
 func (d data) litFor(kind string, s bendout.State) []litView {
@@ -216,7 +224,54 @@ func (d data) pageView() pageView {
 		v.DRE = append(v.DRE, t)
 	}
 	v.Chart = d.chart()
+	v.MgrLoaded = d.mgrLoaded
+	for _, row := range d.mgrs {
+		title := kindTitles[row.Kind]
+		if title == "" {
+			title = row.Kind
+		}
+		rate, margin, cost := "—", "—", "—"
+		if s := mgrRate(row); s != "" {
+			rate = s + "%"
+		}
+		if s := mgrMargin(row); s != "" {
+			margin = s + " pp"
+		}
+		if s := mgrCost(row); s != "" {
+			cost = s
+		}
+		v.Mgrs = append(v.Mgrs, mgrRow{
+			Name: row.Name, Decision: title,
+			Attempts: strconv.Itoa(row.Attempts), Graded: strconv.Itoa(row.Graded),
+			Rate: rate, Margin: margin, Cost: cost,
+		})
+	}
 	return v
+}
+
+// mgrRate is the graded success rate in percent, empty when the decision
+// is an intentional walk or nothing was graded.
+func mgrRate(r vsbook.Row) string {
+	if r.Kind == "ibb" || r.Graded == 0 {
+		return ""
+	}
+	return ratio(int64(r.Successes)*100, int64(r.Graded), 2)
+}
+
+// mgrMargin is the average margin in percentage points: the summed
+// (10000 on a success, else 0, minus the break-even) divided by graded×100.
+func mgrMargin(r vsbook.Row) string {
+	if r.MarginBP == nil || r.Graded == 0 {
+		return ""
+	}
+	return ratio(*r.MarginBP, int64(r.Graded)*100, 2)
+}
+
+func mgrCost(r vsbook.Row) string {
+	if r.RunCost7 == nil {
+		return ""
+	}
+	return runs7(*r.RunCost7)
 }
 
 // State panel.
