@@ -45,3 +45,7 @@ jobs:
           git diff --exit-code -- report/views_templ.go
       - name: Go tests
         run: go test ./...
+      # The full season is not in the repo. This pair is the same files the
+      # compare unit test grades, so the command itself runs in CI.
+      - name: compare on a fixture
+        run: go run ./compare -run compare/testdata/run.txt -ref compare/testdata/ref.csv
