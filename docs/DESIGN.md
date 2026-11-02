@@ -1,6 +1,6 @@
 # bend-re24 design
 
-Decisions for TODO section 1 (Brainstorm). Code references are to this repo.
+Design decisions for this repository. Code references are to this repo.
 
 ## Thesis
 
@@ -15,11 +15,11 @@ Published RE24 tables (FanGraphs, Tango) are numbers produced by code nobody els
 - Every event counts, not only plate-appearance starts (PA-start counting missed FanGraphs by up to 0.0335 runs in the prototype).
 - Complete half-innings only. A half still open at the end of a game's records is counted as `partial` and contributes nothing to the table or to RE (`RE.game`: observations are pushed only when the half closes).
 
-## The 7 laws, mapped to the 4 TODO laws
+## The 7 laws
 
-All 7 are in `LAWS.bend`; proofs are in `PROOF.bend`.
+All 7 are in `LAWS.bend`; proofs are in `PROOF.bend`. They are the four claims below.
 
-| TODO law | `LAWS.bend` law(s) | Statement |
+| Claim | `LAWS.bend` law(s) | Statement |
 |---|---|---|
 | Runs + outs + runners on base account for every batter (conservation) | `box_balances_away`, `box_balances_home` | For any play list replayed from the start, each team's completed PAs equal runs + putouts + left on base + still on base (OBR 9.03(c)). |
 | 3 outs ends the half; state resets to empty, 0 outs | `outs_below_three`, `half_resets` | Replayed outs are always < 3; every `step` keeps the same side batting or yields a `fresh` state (bases empty, 0 outs). |

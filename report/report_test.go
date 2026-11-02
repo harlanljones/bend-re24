@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/harlanljones/bend-re24/internal/bendout"
 )
@@ -91,5 +92,12 @@ func TestRoutes(t *testing.T) {
 	}
 	if !strings.Contains(html.UnescapeString(body), notice) {
 		t.Errorf("/: missing the Retrosheet notice")
+	}
+}
+
+func TestServerTimeouts(t *testing.T) {
+	s := newServer("127.0.0.1:0", http.NewServeMux())
+	if s.ReadHeaderTimeout != 5*time.Second || s.ReadTimeout != 10*time.Second || s.WriteTimeout != 15*time.Second {
+		t.Fatalf("timeouts = header %s read %s write %s", s.ReadHeaderTimeout, s.ReadTimeout, s.WriteTimeout)
 	}
 }

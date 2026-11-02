@@ -84,7 +84,7 @@ data/raw/$(YEAR)/TEAM$(YEAR):
 ingest: data/plays-$(YEAR).csv
 
 data/cwevent-$(YEAR).csv: $(CWEVENT) data/raw/$(YEAR)/TEAM$(YEAR)
-	cd data/raw/$(YEAR) && $(abspath $(CWEVENT)) -Q -n -y $(YEAR) -f 0,1,2,4,34,35,40,58-61 -x 3,13,14,45,55 $(YEAR)*.EV? > ../../cwevent-$(YEAR).csv
+	cd data/raw/$(YEAR) && $(abspath $(CWEVENT)) -Q -n -y $(YEAR) $(CWFIELDS) $(YEAR)*.EV? > ../../cwevent-$(YEAR).csv
 
 data/plays-$(YEAR).csv: data/cwevent-$(YEAR).csv ingest/main.go
 	go run ./ingest -in data/cwevent-$(YEAR).csv -plays data/plays-$(YEAR).csv -games data/games-$(YEAR).csv

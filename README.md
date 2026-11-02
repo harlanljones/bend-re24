@@ -148,3 +148,7 @@ make ingest && make check && make run && make compare && make report
 - **Decision book.** Run values come from a league-wide table, not from specific batters or game situations. Win-probability versions are v1 (see `docs/DESIGN.md`).
 
 See `docs/DESIGN.md` for the design decisions and `docs/RESEARCH.md` for the sources.
+
+## License
+
+The code in this repository is MIT; see `LICENSE`. Nothing else in the repository suggested a different license. Retrosheet's event files and game logs are not covered by that grant: the notice above is theirs, and it stays in `fixtures/NOTICE` and the report footer.

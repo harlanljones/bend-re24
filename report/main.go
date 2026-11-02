@@ -14,6 +14,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -81,7 +82,24 @@ func run(runPath, bootPath, refs, addr, export string, year int) error {
 		return err
 	}
 	log.Printf("report: serving http://%s", addr)
-	return http.ListenAndServe(addr, newHandler(data{out, boot, lit}))
+	return listen(addr, newHandler(data{out, boot, lit}))
+}
+
+// newServer bounds how long a request may sit in read or write. The page is
+// rendered before the write, so the write timeout covers sending it.
+func newServer(addr string, h http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+}
+
+func listen(addr string, h http.Handler) error {
+	return newServer(addr, h).ListenAndServe()
 }
 
 func parseFile(path string) (*bendout.Output, error) {
