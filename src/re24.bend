@@ -270,7 +270,8 @@ def game(recs: List<&2, Rec>) -> Verdict:
 
 # Games seen, good and bad; one BADGAME line per bad game; the summed counts
 # of good games and each good game's own counts; their observations; and the
-# closed and dropped halves. Lists are newest first until `season` returns.
+# closed and dropped halves. `absorb` stacks lists newest-first; `season`
+# returns file order for the bad-game lines and the per-game counts.
 type Season is Data:
   Season{seen: Nat, good: Nat, bad: Nat, badlines: List<&2, String>, tots: List<&2, Tot>, games: List<&2, List<&2, Tot>>, obs: List<&2, Spec.Obs>, halves: Nat, partial: Nat}
 
@@ -288,49 +289,124 @@ def rec_game(r: Rec) -> Nat:
     case Rec{g, _, _, _, _, _, _, _, _, _}:
       g
 
-# Records of the game being collected (newest first), and its number.
-type Grp is Data:
-  Grp{g: Nat, recs: List<&2, Rec>, sea: Season}
-
-def flush(+g: Nat, recs: List<&2, Rec>, sea: Season) -> Season:
+# One game's records, oldest first, consed onto games already closed.
+def chunk.push(recs: List<&2, Rec>, acc: List<&2, List<&2, Rec>>) -> List<&2, List<&2, Rec>>:
   match recs:
     case Nil{}:
-      sea
-    case Con{r, rest}:
-      absorb(sea, g, game(List.reverse(&2, Rec, Con{r, rest})))
+      acc
+    case Con{_, _}:
+      List.reverse(&2, Rec, recs) <> acc
 
-def group.same(same: Bool, g: Nat, recs: List<&2, Rec>, sea: Season, +r: Rec) -> Grp:
+# The open game (records newest first) and the closed games (newest first).
+type Ch is Data:
+  Ch{g: Nat, recs: List<&2, Rec>, acc: List<&2, List<&2, Rec>>}
+
+def chunk.same(same: Bool, g: Nat, recs: List<&2, Rec>, acc: List<&2, List<&2, Rec>>, +r: Rec) -> Ch:
   match same:
     case True{}:
-      Grp{g, r <> recs, sea}
+      Ch{g, r <> recs, acc}
     case False{}:
-      Grp{rec_game(r), [r], flush(g, recs, sea)}
+      Ch{rec_game(r), [r], chunk.push(recs, acc)}
 
-def group.one(acc: Grp, +r: Rec) -> Grp:
-  match acc:
-    case Grp{+g, recs, sea}:
-      group.same(Nat.is_eq(g, rec_game(r)), g, recs, sea, r)
+def chunk.one(c: Ch, +r: Rec) -> Ch:
+  match c:
+    case Ch{+g, recs, acc}:
+      chunk.same(Nat.is_eq(g, rec_game(r)), g, recs, acc, r)
 
-def group(rs: List<&2, Rec>, acc: Grp) -> Grp:
+def chunk.go(rs: List<&2, Rec>, c: Ch) -> Ch:
   match rs:
     case Nil{}:
-      acc
+      c
     case Con{r, rest}:
-      group(rest, group.one(acc, r))
+      chunk.go(rest, chunk.one(c, r))
+
+def chunk.fin(c: Ch) -> List<&2, List<&2, Rec>>:
+  match c:
+    case Ch{_, recs, acc}:
+      List.reverse(&2, List<&2, Rec>, chunk.push(recs, acc))
+
+# One list per game, in file order. Records of one game are consecutive.
+def chunks(rs: List<&2, Rec>) -> List<&2, List<&2, Rec>>:
+  chunk.fin(chunk.go(rs, Ch{0n, Nil{}, Nil{}}))
+
+# A replayed game, still carrying the id `BADGAME` prints.
+type Played is Data:
+  Played{g: Nat, v: Verdict}
+
+def played(rs: List<&2, Rec>) -> Played:
+  match rs:
+    case Nil{}:
+      Played{0n, Bad{0n, "empty"}}
+    case Con{+r, rest}:
+      Played{rec_game(r), game(r <> rest)}
+
+def pow2(d: Nat) -> Nat:
+  match d:
+    case 0n:
+      1n
+    case 1n+p:
+      +h = pow2(p)
+      Nat.add(h, h)
+
+def bits(fuel: Nat, n: Nat) -> Nat:
+  match fuel n:
+    case 0n _:
+      0n
+    case 1n+f 0n:
+      0n
+    case 1n+f 1n+m:
+      1n+bits(f, Nat.div(1n+m, 2n))
+
+# The least d with 2^d >= n. n is at least 1.
+def depth(+n: Nat) -> Nat:
+  bits(64n, Nat.sub(n, 1n))
+
+# The games in one leaf, in order. A leaf holds one game; an empty slot is
+# what the padding of a non-power-of-two season looks like.
+def replay_leaf(gs: List<&2, List<&2, Rec>>) -> List<&2, Played>:
+  match gs:
+    case Nil{}:
+      Nil{}
+    case Con{rs, rest}:
+      played(rs) <> replay_leaf(rest)
+
+# Depth d forks. The earlier games are the left half, so the append is file order.
+def replay_at(d: Nat, +gs: List<&2, List<&2, Rec>>) -> List<&2, Played>:
+  match d:
+    case 0n:
+      replay_leaf(gs)
+    case 1n++p:
+      +h = pow2(p)
+      a b = replay_at(p, List.take(&2, List<&2, Rec>, gs, h)) replay_at(p, List.drop(&2, List<&2, Rec>, gs, h))
+      List.append(&2, Played, a, b)
+
+def replay.go(empty: Bool, +n: Nat, +gs: List<&2, List<&2, Rec>>) -> List<&2, Played>:
+  match empty:
+    case True{}:
+      Nil{}
+    case False{}:
+      replay_at(depth(n), gs)
+
+def replay(+gs: List<&2, List<&2, Rec>>) -> List<&2, Played>:
+  +n = List.length(&2, List<&2, Rec>, gs)
+  replay.go(Nat.is_eq(n, 0n), n, gs)
 
 def season.out(sea: Season) -> Season:
   match sea:
     case Season{seen, good, bad, lines, sum, games, obs, halves, partial}:
       Season{seen, good, bad, List.reverse(&2, String, lines), sum, List.reverse(&2, List<&2, Tot>, games), obs, halves, partial}
 
-def season.fin(acc: Grp) -> Season:
-  match acc:
-    case Grp{g, recs, sea}:
-      season.out(flush(g, recs, sea))
+def fold(ps: List<&2, Played>, sea: Season) -> Season:
+  match ps:
+    case Nil{}:
+      season.out(sea)
+    case Con{Played{+g, v}, rest}:
+      fold(rest, absorb(sea, g, v))
 
-# Replay every game; records of one game are consecutive.
+# Replay every game. Within a game the scorebook is sequential; across games
+# the replays do not share state, so they fork.
 def season(recs: List<&2, Rec>) -> Season:
-  season.fin(group(recs, Grp{0n, Nil{}, Season{0n, 0n, 0n, Nil{}, zeros24(), Nil{}, Nil{}, 0n, 0n}}))
+  fold(replay(chunks(recs)), Season{0n, 0n, 0n, Nil{}, zeros24(), Nil{}, Nil{}, 0n, 0n})
 
 # Ratios
 # ------

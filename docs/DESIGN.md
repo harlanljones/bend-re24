@@ -93,6 +93,12 @@ Passing league rates into that `Sim` would not be the certified chain. The const
 
 The report renders the table when `-marks` and `-games` are both set. `make run` also writes `out/managers-$(YEAR).csv`.
 
+## Scheduling
+
+A game's scorebook is sequential: each play starts from the state the previous play left. Games do not share that state. `RE.season` splits the file into one list per game, replays those lists as a balanced fork, and folds the verdicts from the first game to the last. The fold is what keeps `BADGAME` lines, per-game bootstrap counts, and the transition-table order the same as a sequential pass.
+
+The decision catalogue does not depend on the RE table. `Dec.be_book` and `Dec.dre_book` run each success and failure play through `RE.observe` once. `Boot.cfg` holds those books, and each of the 1024 samples only applies its resampled RE. `Cfg` also stores `2^(depth-1)`, the pivot `pick` used to recompute on every draw.
+
 ## GPU lanes
 
 `run.cpu` in `src/bootstrap.bend` is `lanes(5n, Nat.sub(log_size(), 5n), 0n, c)`: 32 lanes, each with its own copy of the games, each running 32 samples in order. The matching GPU call is `Boot.lanes!(5n, Nat.sub(Boot.log_size(), 5n), 0n, c)` in place of `Boot.tree!(Boot.log_size(), 0n, c)` in `gpu.bend`. That edit is not committed. Bend compiles `!` with clang 19 or newer plus a CUDA toolkit, and this environment has clang 18 and no `nvcc`, so the change could not be built or compared with `bin/re24 boot`.

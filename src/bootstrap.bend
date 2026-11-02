@@ -99,28 +99,30 @@ def pick(d: Nat, +t: GTree, +i: Nat, +h: Nat) -> List<&2, RE.Tot>:
 # Resampling
 # ----------
 
+# `half` is 2^(depth-1), the pivot `pick` uses. `be` and `dre` are the
+# decision books: scorebook outcomes fixed once, RE applied per sample.
 type Cfg is Data:
-  Cfg{tree: GTree, depth: Nat, games: Nat, seed: U32}
+  Cfg{tree: GTree, depth: Nat, half: Nat, games: Nat, seed: U32, be: List<&2, Dec.Shot>, dre: List<&2, Dec.Shot>}
 
 def cfg(+games: List<&2, List<&2, RE.Tot>>, seed: U32) -> Cfg:
   +g = List.length(&2, List<&2, RE.Tot>, games)
   +d = depth(g)
-  Cfg{build(d, games), d, g, seed}
+  Cfg{build(d, games), d, Nat.div(pow2(d), 2n), g, seed, Dec.be_book(), Dec.dre_book()}
 
-def draw(n: Nat, +x: U32, acc: List<&2, RE.Tot>, +t: GTree, +d: Nat, +g: Nat) -> List<&2, RE.Tot>:
+def draw(n: Nat, +x: U32, acc: List<&2, RE.Tot>, +t: GTree, +d: Nat, +half: Nat, +g: Nat) -> List<&2, RE.Tot>:
   match n:
     case 0n:
       acc
     case 1n+m:
       +y = next(x)
       +i = Nat.mod(U32.to_nat(y), g)
-      draw(m, y, RE.tots_sum(acc, pick(d, t, i, Nat.div(pow2(d), 2n))), t, d, g)
+      draw(m, y, RE.tots_sum(acc, pick(d, t, i, half)), t, d, half, g)
 
 # Season k: G games drawn with replacement, summed.
 def resample(+k: Nat, +c: Cfg) -> List<&2, RE.Tot>:
   match c:
-    case Cfg{t, d, g, seed}:
-      draw(g, nz(mix(U32.xor(seed, U32.from_nat(k)))), RE.zeros24(), t, d, g)
+    case Cfg{t, d, +half, g, seed, _, _}:
+      draw(g, nz(mix(U32.xor(seed, U32.from_nat(k)))), RE.zeros24(), t, d, half, g)
 
 type Sample is Data:
   Sample{re: List<&2, Maybe<&2, Nat>>, be: List<&2, Maybe<&2, Nat>>, dre: List<&2, Maybe<&2, Dec.Z>>}
@@ -133,8 +135,10 @@ def re_list(n: Nat, +ts: List<&2, RE.Tot>, +i: Nat) -> List<&2, Maybe<&2, Nat>>:
       RE.re7(ts, i) <> re_list(m, ts, 1n+i)
 
 def sample(+k: Nat, +c: Cfg) -> Sample:
-  +ts = resample(k, c)
-  Sample{re_list(24n, ts, 0n), Dec.be_vals(ts), Dec.dre_vals(ts)}
+  match c:
+    case Cfg{_, _, _, _, _, be, dre}:
+      +ts = resample(k, c)
+      Sample{re_list(24n, ts, 0n), Dec.be_on(be, ts), Dec.dre_on(dre, ts)}
 
 # Samples k .. k + 2^d - 1, in index order, as a balanced fork tree.
 def tree(d: Nat, +k: Nat, +c: Cfg) -> List<&2, Sample>:
@@ -165,8 +169,8 @@ def copy_tree(t: GTree) -> GTree:
 
 def fresh(c: Cfg) -> Cfg:
   match c:
-    case Cfg{t, d, g, seed}:
-      Cfg{copy_tree(t), d, g, seed}
+    case Cfg{t, d, half, g, seed, be, dre}:
+      Cfg{copy_tree(t), d, half, g, seed, be, dre}
 
 # Samples k .. k + n - 1, one after another.
 def seq(n: Nat, +k: Nat, +c: Cfg) -> List<&2, Sample>:

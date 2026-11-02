@@ -76,9 +76,6 @@ def value(+ts: List<&2, RE.Tot>, o: Maybe<&2, Spec.Obs>) -> Maybe<&2, Nat>:
     case Some{Spec.Obs{_, to, runs}}:
       value.of(RE.re7(ts, to), runs)
 
-def before(+ts: List<&2, RE.Tot>, +bases: Nat, +outs: Nat) -> Maybe<&2, Nat>:
-  RE.re7(ts, Nat.add(Nat.mul(outs, 8n), bases))
-
 # Break-even
 # ----------
 
@@ -199,34 +196,60 @@ def dre_choices() -> List<&2, Choice>:
 # Values
 # ------
 
-def be_of(+ts: List<&2, RE.Tot>, c: Choice) -> Maybe<&2, Nat>:
+# A choice scored once. The state index and the scorebook observations do not
+# depend on the RE table, so a bootstrap builds the book once and each sample
+# only looks up RE.
+type Shot is Data:
+  Shot{at: Nat, win: Maybe<&2, Spec.Obs>, lose: Maybe<&2, Spec.Obs>}
+
+def shot(c: Choice) -> Shot:
   match c:
     case Choice{_, +b, +o, w, l}:
-      breakeven(before(ts, b, o), value(ts, outcome(b, o, w)), value(ts, outcome(b, o, l)))
+      Shot{Nat.add(Nat.mul(o, 8n), b), outcome(b, o, w), outcome(b, o, l)}
 
-def dre_of(+ts: List<&2, RE.Tot>, c: Choice) -> Maybe<&2, Z>:
-  match c:
-    case Choice{_, +b, +o, w, _}:
-      gain(before(ts, b, o), value(ts, outcome(b, o, w)))
-
-def be_go(cs: List<&2, Choice>, +ts: List<&2, RE.Tot>) -> List<&2, Maybe<&2, Nat>>:
+def shots(cs: List<&2, Choice>) -> List<&2, Shot>:
   match cs:
     case Nil{}:
       Nil{}
     case Con{c, rest}:
-      be_of(ts, c) <> be_go(rest, ts)
+      shot(c) <> shots(rest)
 
-def dre_go(cs: List<&2, Choice>, +ts: List<&2, RE.Tot>) -> List<&2, Maybe<&2, Z>>:
-  match cs:
+# Break-even choices, each already run through the scorebook.
+def be_book() -> List<&2, Shot>:
+  shots(be_choices())
+
+# Run-cost choices, each already run through the scorebook.
+def dre_book() -> List<&2, Shot>:
+  shots(dre_choices())
+
+def be_shot(+ts: List<&2, RE.Tot>, s: Shot) -> Maybe<&2, Nat>:
+  match s:
+    case Shot{+at, w, l}:
+      breakeven(RE.re7(ts, at), value(ts, w), value(ts, l))
+
+def dre_shot(+ts: List<&2, RE.Tot>, s: Shot) -> Maybe<&2, Z>:
+  match s:
+    case Shot{+at, w, _}:
+      gain(RE.re7(ts, at), value(ts, w))
+
+def be_on(ss: List<&2, Shot>, +ts: List<&2, RE.Tot>) -> List<&2, Maybe<&2, Nat>>:
+  match ss:
     case Nil{}:
       Nil{}
-    case Con{c, rest}:
-      dre_of(ts, c) <> dre_go(rest, ts)
+    case Con{s, rest}:
+      be_shot(ts, s) <> be_on(rest, ts)
+
+def dre_on(ss: List<&2, Shot>, +ts: List<&2, RE.Tot>) -> List<&2, Maybe<&2, Z>>:
+  match ss:
+    case Nil{}:
+      Nil{}
+    case Con{s, rest}:
+      dre_shot(ts, s) <> dre_on(rest, ts)
 
 # Break-evens in basis points, in be_choices order.
 def be_vals(+ts: List<&2, RE.Tot>) -> List<&2, Maybe<&2, Nat>>:
-  be_go(be_choices(), ts)
+  be_on(be_book(), ts)
 
 # Run values in 10^-7 runs, in dre_choices order.
 def dre_vals(+ts: List<&2, RE.Tot>) -> List<&2, Maybe<&2, Z>>:
-  dre_go(dre_choices(), ts)
+  dre_on(dre_book(), ts)
