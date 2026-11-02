@@ -13,7 +13,7 @@ Published RE24 tables (FanGraphs, Tango) are numbers produced by code nobody els
 1. **Data.** Retrosheet 2024 event files from the `chadwickbureau/retrosheet` mirror, pinned to commit `118094bb3fc2ca292c25fccf54e7541762887bf6` (`ingest/fetch.sh`).
 2. **Chadwick.** `cwevent` 0.11.0, built in the repo under `.tools/`, writes one row per event.
 3. **Ingest** (`ingest/`, Go). Keeps innings 1–8 and writes each play as four destination characters, one per slot: runner on third, runner on second, runner on first, batter (`data/plays-2024.csv`). It also restores the forced advances that Retrosheet leaves out on 80 third-out force plays.
-4. **Replay** (`src/re24.bend`, Bend 2). Every game is replayed from the first pitch through `step`, the scorebook copied verbatim from [bend-winprob](https://github.com/harlanljones/bend-winprob) (`src/state.bend`).
+4. **Replay** (`src/re24.bend`, Bend 2). Every game is replayed from the first pitch through `step`, the scorebook copied verbatim from [bend-winprob](https://github.com/harlanljones/bend-winprob) (`src/state.bend`). Games do not share scorebook state, so the season replays them as a balanced fork/join and merges the counts in file order.
    - Before each play, Chadwick's starting state is checked against the scorebook: inning, half, outs and bases.
    - The play then has to pass the legality gate, `RE.observe`, and the scorebook must accept it.
    - After it, Chadwick's runs and outs on the play, its end bases (except at the third out) and its `FATE_RUNS_CT` must all match.
@@ -21,7 +21,7 @@ Published RE24 tables (FanGraphs, Tango) are numbers produced by code nobody els
 5. **RE.** The direct count: for each base-out state, the runs from that state to the end of the half-inning, over the number of times the state was visited. Only complete half-innings count, and every event counts, not only the start of each plate appearance. The values are exact `Nat` ratios.
 6. **Certificate.** For each state, the transition table produced by the proven `Counts.tally` must total the same number of plays as the RE visit count. If any state differs, `bin/re24` stops with `ERROR table <i>`.
 7. **Decision book** (`src/decisions.bend`). Each outcome is a play run through `RE.observe` from a synthetic state, so it passes the same proven gate as the season's plays. A play's value is the RE7 of the state it ends in, plus the runs it scores. RE7 is RE in units of 10⁻⁷ runs, rounded down.
-8. **Bootstrap** (`src/bootstrap.bend`). Draws 1024 resamples of whole games with replacement, using an xorshift32 RNG seeded per sample, and reports 95% percentile intervals. The samples run as a fork/join tree, either on 32 CPU lanes, each with its own copy of the games, or on the GPU (`gpu.bend`).
+8. **Bootstrap** (`src/bootstrap.bend`). Draws 1024 resamples of whole games with replacement, using an xorshift32 RNG seeded per sample, and reports 95% percentile intervals. The samples run as a fork/join tree, either on 32 CPU lanes, each with its own copy of the games, or on the GPU (`gpu.bend`). The decision book's scorebook outcomes are fixed once per run; a sample only looks up RE. The game tree's half-width is stored with the tree.
 9. **Report** (`report/`, Go + templ + htmx). Turns the exact integers into decimals with `math/big.Rat`.
 
 ## Laws proved vs checked
