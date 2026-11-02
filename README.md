@@ -120,7 +120,7 @@ The CPU, GPU, 1-thread and 24-thread runs all print byte-identical output. A sin
 - giving every sample its own copy: 13.99 s on 1 thread and 0.838 s on 24;
 - giving each of 32 lanes its own copy, with the lane running its 32 samples in turn: 3.4 s and 0.48 s.
 
-The last one is what `run.cpu` does. `gpu.bend` keeps the single shared tree (`Boot.tree!`).
+The last one is what `run.cpu` does. The same split on the GPU would replace `Boot.tree!(Boot.log_size(), 0n, c)` in `gpu.bend` with `Boot.lanes!(5n, Nat.sub(Boot.log_size(), 5n), 0n, c)`. That edit is not in the tree: Bend compiles `!` only with clang 19 or newer, and this environment has clang 18 and no CUDA toolkit, so it could not be built or checked against `bin/re24 boot`.
 
 ## Reproduce
 
@@ -130,24 +130,24 @@ Requirements: Bend 2.0.39 at `~/.bend/bin/bend` (override with `BEND=`), clang �
 make ingest && make check && make run && make compare && make report
 ```
 
-- `make ingest`: builds Chadwick, fetches the 61 pinned season files and writes `data/plays-2024.csv`. Prints `ingest: 2429 games, 169940 plays (innings 1-8), 80 forced-advance repairs`.
+- `make ingest`: builds Chadwick, fetches the pinned season (team list, event files, rosters, and the game log) and writes `data/plays-$(YEAR).csv`, `data/games-$(YEAR).csv`, and `data/marks-$(YEAR).csv`. The stderr line counts games, plays in innings 1–8, forced-advance repairs, decision marks, and how many games matched a manager pair in the game log.
 - `make check`: proofs (plain and `--verdict`), the native build, `tests/run.sh` and `go test ./...`.
-- `make run`: writes `out/run-2024.txt`, `out/boot-2024.txt` (seed `SEED=2024`) and the CSVs `out/transitions-2024.csv`, `out/re24-2024.csv` and `out/decisions-2024.csv`.
-- `make compare`: compares with `fixtures/reference/fangraphs-$(YEAR)-re24.csv`. `make report`: serves http://127.0.0.1:8024 and passes `-year $(YEAR)`. `make time`: writes `out/timing-$(YEAR).txt`.
+- `make run`: writes `out/run-$(YEAR).txt`, `out/boot-$(YEAR).txt` (seed `SEED`, default 2024) and the CSVs `out/transitions-$(YEAR).csv`, `out/re24-$(YEAR).csv`, `out/decisions-$(YEAR).csv`, and, when the marks and games files are present, `out/managers-$(YEAR).csv`.
+- `make compare`: compares with `fixtures/reference/fangraphs-$(YEAR)-re24.csv`. `make report`: serves http://127.0.0.1:8024 and passes `-year $(YEAR)` plus the season's games and marks. `make time`: writes `out/timing-$(YEAR).txt`.
 
-`YEAR` defaults to 2024. `YEAR=2023 make fetch ingest run compare` replays that season against Clemens' 2023 table (same 2025-05-29 article). Two cells he prints as `1` and `1.5` are stored as `1.00` and `1.50`, the same way 2024's `0.1` is stored as `0.10`. The 2023 replay is `GAMES 2430 2430 0`, `HALVES 38870 0`, `PLAYS 171388`, with 97 forced-advance repairs. `make compare YEAR=2023` reports `24/24 within 0.01 runs; worst 0.0082 at 5/0` (1B+3B, none out).
+`YEAR` defaults to 2024. `YEAR=2023 make fetch ingest run compare` replays that season against Clemens' 2023 table (same 2025-05-29 article). Two cells he prints as `1` and `1.5` are stored as `1.00` and `1.50`, the same way 2024's `0.1` is stored as `0.10`. The 2023 replay is `GAMES 2430 2430 0`, `HALVES 38870 0`, `PLAYS 171388`, with 97 forced-advance repairs. `make compare YEAR=2023` reports `24/24 within 0.01 runs; worst 0.0082 at 5/0` (1B+3B, none out). Re-ingesting 2023 after the mark columns were added left the plays file byte-identical, so that compare result is unchanged. The new stderr line for that season is `ingest: 2430 games, 171388 plays (innings 1-8), 97 forced-advance repairs, 4490 decision marks, managers for 2430/2430 games`. Of those marks, 2611 of 2791 steals of second, 320 of 479 steals of third, 331 of 937 bunts, and all 278 intentional walks match the book's success or failure play and are graded; the other 5 are steals of home or another base pattern and are counted only.
 
 ## Limits
 
 - **80 repaired plays.** On 80 third-out force plays (for example `5(2)/FO/G56.B-1` from 1B+2B), Retrosheet omits the forced runners' advances, so Chadwick puts two runners on one base. `ingest` moves each forced runner up one base, and after that every game replays cleanly. A runner forced off third would be ambiguous, so such a play is left unrepaired and would be rejected; none occur in 2024. Because Chadwick's end bases are lossy on these plays, the replay does not compare end bases at the third out.
 - **One partial half.** The records of `MIN202407040` stop in the bottom of the 7th, 5 events into the half. That half is dropped whole, so the table and the RE denominators cover the same plays.
-- **GPU.** The GPU build (`bin/re24-gpu`, `bin/re24-gpu.gpu`) runs and matches the CPU output. At 1.296 s it is slower than 24 CPU threads on this workload.
+- **GPU.** The GPU build (`bin/re24-gpu`, `bin/re24-gpu.gpu`) runs and matches the CPU output. At 1.296 s it is slower than 24 CPU threads on this workload. A per-lane copy, matching `run.cpu`, is described above and was not committed: this environment cannot compile `!`.
 - **Bend.**
   - `Nat` is a native u64 capped at 2⁴⁸−1 that aborts on overflow; the largest value here is about 2×10¹¹.
   - `F32` is axiomatic, so nothing here uses floats.
   - No Windows.
   - Decisions use RE7 values rounded down to 10⁻⁷ runs, and break-evens are rounded down to whole basis points.
-- **Decision book.** Run values come from a league-wide table, not from specific batters or game situations. Win-probability versions are v1 (see `docs/DESIGN.md`).
+- **Decision book.** Run values come from a league-wide table, not from specific batters or game situations. Manager grades use only the solo success and failure plays, and only innings 1–8. There is no win-probability table: bend-winprob's `Sim` samples a seven-outcome rate model and does not consume these transitions (see `docs/DESIGN.md`).
 
 See `docs/DESIGN.md` for the design decisions and `docs/RESEARCH.md` for the sources.
 

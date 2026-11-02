@@ -97,7 +97,7 @@ Read: abstract at https://econpapers.repec.org/article/bpjjqsprt/v_3a15_3ay_3a20
 - MDP over a nine-inning game with non-identical batters, populated with NL data; computes how much a sacrifice raises win probability.
 - Argues maximizing win probability is superior to maximizing expected runs or P(score ≥ 1) in the half-inning.
 - Finds the sacrifice bunt more beneficial than previously thought; discusses effect sizes and the effect of simplifying runner advancement or ignoring double plays.
-- Relevance: our run-based bunt break-evens (e.g. ≥ 10000 bp = never pays) are expected to look worse for the bunt than a WP analysis; motivates v1 WP via bend-winprob.
+- Relevance: our run-based bunt break-evens (e.g. ≥ 10000 bp = never pays) are expected to look worse for the bunt than a win-probability analysis. bend-winprob's `Sim` does not consume this repo's certified transitions; the gap is recorded in `docs/DESIGN.md` and no win-probability number is printed.
 
 ### Isabelle AFP, "Verified Algorithms for Solving Markov Decision Processes" (MDP-Algorithms)
 

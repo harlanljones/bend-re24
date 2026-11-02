@@ -65,16 +65,37 @@ Outcomes come from `RE.observe` applied to a synthetic state (inning 1, top, giv
 
 The Makefile variable `YEAR` (default 2024) selects the Retrosheet season for fetch, ingest, run, compare, and the report. Compare reads `fixtures/reference/fangraphs-$(YEAR)-re24.csv`. The report takes `-year` (default 2024; `make report` passes `$(YEAR)`).
 
-2023 is the second checked season. Its reference is Clemens' single-season table from the same 2025-05-29 article. Cells printed there as `1` and `1.5` are stored as `1.00` and `1.50`. The replay (`GAMES 2430 2430 0`, `PLAYS 171388`, 97 forced-advance repairs, no partial half) matches that table: 24/24 states within 0.01 runs, worst 0.0082 at 1B+3B with none out.
+2023 is the second checked season. Its reference is Clemens' single-season table from the same 2025-05-29 article. Cells printed there as `1` and `1.5` are stored as `1.00` and `1.50`. The replay (`GAMES 2430 2430 0`, `PLAYS 171388`, 97 forced-advance repairs, no partial half) matches that table: 24/24 states within 0.01 runs, worst 0.0082 at 1B+3B with none out. Adding the mark columns and re-ingesting left `data/plays-2023.csv` byte-identical, so that match still stands. The same ingest wrote 4490 decision marks and a manager pair for all 2430 games.
 
 ## Objective
 
-Runs (RE24) for v0. Win probability is v1, by running the same certified transitions through bend-winprob's `Sim`.
+Runs (RE24) are the v0 book. The planned v1 was a win-probability book: the same certified transitions, scored by win probability rather than by runs.
 
-## Managers-vs-the-Book sketch
+[bend-winprob](https://github.com/harlanljones/bend-winprob) is public. Its `Sim` (`sim.bend`) is a Monte Carlo over a seven-outcome rate model (`Rates`: cumulative thresholds out of 10000 for strikeout, out, walk, single, double, triple, and home run). It forks `2^d` games, each capped at 400 plate appearances, places the regular-season ghost runner from the tenth, and stops on a walk-off. It does not read this repository's transition table.
 
-- `data/plays-2024.csv` keeps the game index and `event_cd` (Chadwick event types: 4 = SB, 6 = CS, 15 = IBB); `data/games-2024.csv` keeps `game_id` and `away_team`. Bend ignores `event_cd`.
-- v1 adds `SH_FL` and `BUNT_FL` (cwevent fields 38 and 48) and manager ids from `gl2024.txt` (game logs, same mirror commit), then scores each attempt against the break-even for its base-out state and aggregates by manager.
+Passing league rates into that `Sim` would not be the certified chain. The construction that matches the plan is a Markov chain whose moves are the observed `(to, runs, n)` cells, with `Sim`'s phase and walk-off rules. Value iteration fits in a Bend array: inning 1–10, half, 24 base-out states, and a score margin clamped at ±12 is 10×2×24×25 = 12000 states. The chain can loop inside one out count, so one backward sweep is not enough, and a state with zero visits needs an explicit fallback. That solver is not in this tree. The report prints no win-probability number.
+
+## Managers vs the book
+
+`data/plays-*.csv` stays eleven columns, ending in `event_cd`. Bend's parser requires that shape and ignores `event_cd`. Steal, bunt, and intentional-walk marks go to `data/marks-$(YEAR).csv` with header `game,half,outs,bases,play,event_cd,sh,bunt`. A row is written for Chadwick event 4 (stolen base), 6 (caught stealing), or 15 (intentional walk), and for any event with `SH_FL` or `BUNT_FL` set. Those flags are cwevent fields 38 and 48, listed in `CWFIELDS`.
+
+`data/games-$(YEAR).csv` is `game,game_id,away_team,home_team,away_mgr_id,away_mgr_name,home_mgr_id,home_mgr_name`. The home team is the first three characters of the game id. Manager ids are game-log fields 90 and 92 (1-based); the Retrosheet game id is home team + date + game number. `ingest/fetch.sh` saves the mirror's `glYEAR.txt` or `GLYEAR.TXT` as `glYEAR.txt`. A games file that still has the old three-column header loads; its managers are reported as `unknown`.
+
+`internal/vsbook` only sums integers `bin/re24` printed. It does not recompute a run expectancy.
+
+- A steal of second is graded on bases 1 or 5 when the play is `--2-` (success) or `--X-` (failure). A steal of third is graded on bases 2 or 3 when the play is `-3--` or `-X--`.
+- A bunt is graded on bases 1, 2, or 3 with 0 or 1 out when the play is that state's success or failure pattern from the decision book (runner advances, batter out; or the lead runner is forced and the batter reaches).
+- One graded steal or bunt contributes 10000 on a success and 0 on a failure, minus that state's break-even in basis points. The report's average divides the sum by the number graded and shows percentage points. A positive average beat the book.
+- Any other attempt (a double steal, a steal of home, a bunt that is not the book's pattern) is counted and left ungraded.
+- An intentional walk has no break-even. The report sums `DRE ibb` in units of 10^-7 runs.
+- Steals and bunts belong to the batting manager. Half 0 is the top of the inning, so the away manager. An intentional walk belongs to the fielding manager.
+- Innings 1–8 only, because ingest drops the rest.
+
+The report renders the table when `-marks` and `-games` are both set. `make run` also writes `out/managers-$(YEAR).csv`.
+
+## GPU lanes
+
+`run.cpu` in `src/bootstrap.bend` is `lanes(5n, Nat.sub(log_size(), 5n), 0n, c)`: 32 lanes, each with its own copy of the games, each running 32 samples in order. The matching GPU call is `Boot.lanes!(5n, Nat.sub(Boot.log_size(), 5n), 0n, c)` in place of `Boot.tree!(Boot.log_size(), 0n, c)` in `gpu.bend`. That edit is not committed. Bend compiles `!` with clang 19 or newer plus a CUDA toolkit, and this environment has clang 18 and no `nvcc`, so the change could not be built or compared with `bin/re24 boot`.
 
 ## Name
 
